@@ -1,0 +1,19 @@
+/* App stylesheet.
+   1. Tailwind (used for layout utilities only — flex/grid/gap/spacing).
+   2. Itaily Design System tokens (the visual source of truth: colors, type,
+      spacing, radii, shadows, fonts). Imported AFTER Tailwind so the brand's
+      base.css (body, headings, links) wins over Tailwind's preflight reset. */
+@import 'tailwindcss';
+@import './lib/styles/itaily/styles.css';
+
+:root {
+	color-scheme: light;
+}
+
+/* The warm Itaily ground extends to the full viewport. */
+html,
+body {
+	min-height: 100%;
+	background: var(--surface-page);
+	color: var(--text-primary);
+}

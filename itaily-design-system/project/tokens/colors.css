@@ -1,0 +1,76 @@
+/* Itaily — Color tokens
+   Brand: terracotta orange (#E86741) + warm ink, on warm paper.
+   The palette is intentionally warm/earthy — Italian, editorial, legal-but-human. */
+
+:root {
+  /* ---- Terracotta (brand accent) ---- */
+  --terracotta-50:  #FDF3EF;
+  --terracotta-100: #FAE0D6;
+  --terracotta-200: #F4BFAB;
+  --terracotta-300: #EF9D7F;
+  --terracotta-400: #EC7E5B;
+  --terracotta-500: #E86741; /* BRAND — from the logo */
+  --terracotta-600: #D14E29;
+  --terracotta-700: #AE3D20;
+  --terracotta-800: #8A321F;
+  --terracotta-900: #6F2B1E;
+
+  /* ---- Warm neutrals (ink scale) ---- */
+  --paper:     #FAF8F4; /* page background, warm off-white */
+  --neutral-0:   #FFFFFF;
+  --neutral-50:  #F6F3EE;
+  --neutral-100: #EEE9E2;
+  --neutral-200: #E2DBD0;
+  --neutral-300: #CFC6B8;
+  --neutral-400: #A89E8E;
+  --neutral-500: #7C7367;
+  --neutral-600: #5B544B;
+  --neutral-700: #414141; /* INK SOFT — the logo gray */
+  --neutral-800: #2A2724; /* INK — near-black, warm */
+  --neutral-900: #1B1916;
+
+  /* ---- Semantic status ---- */
+  --green-500:  #2E9E6B; /* success / compliant */
+  --green-50:   #E7F5EE;
+  --amber-500:  #D99327; /* caution / pending review */
+  --amber-50:   #FBF1DE;
+  --red-500:    #CF4327; /* error / risk */
+  --red-50:     #FBEAE5;
+  --blue-500:   #3B73C4; /* info / reference link */
+  --blue-50:    #E9F0FA;
+
+  /* ============ SEMANTIC ALIASES ============ */
+  --color-accent:        var(--terracotta-500);
+  --color-accent-hover:  var(--terracotta-600);
+  --color-accent-active: var(--terracotta-700);
+  --color-accent-weak:   var(--terracotta-50);
+  --color-on-accent:     var(--neutral-0);
+
+  --surface-page:    var(--paper);
+  --surface-card:    var(--neutral-0);
+  --surface-sunken:  var(--neutral-50);
+  --surface-raised:  var(--neutral-0);
+  --surface-inverse: var(--neutral-800);
+  --surface-hover:   var(--neutral-50);
+
+  --text-primary:    var(--neutral-800);
+  --text-secondary:  var(--neutral-600);
+  --text-tertiary:   var(--neutral-500);
+  --text-on-inverse: var(--paper);
+  --text-on-accent:  var(--neutral-0);
+  --text-link:       var(--terracotta-600);
+
+  --border-subtle:   var(--neutral-100);
+  --border-default:  var(--neutral-200);
+  --border-strong:   var(--neutral-300);
+  --border-focus:    var(--terracotta-500);
+
+  --status-success-fg: var(--green-500);
+  --status-success-bg: var(--green-50);
+  --status-warning-fg: var(--amber-500);
+  --status-warning-bg: var(--amber-50);
+  --status-danger-fg:  var(--red-500);
+  --status-danger-bg:  var(--red-50);
+  --status-info-fg:    var(--blue-500);
+  --status-info-bg:    var(--blue-50);
+}

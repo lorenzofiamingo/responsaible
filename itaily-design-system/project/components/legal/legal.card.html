@@ -1,0 +1,54 @@
+<!-- @dsCard group="Components" viewport="700x360" name="Legal" subtitle="Citations, source cards, confidence — the Itaily signatures." -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body{margin:0;background:var(--surface-page);font-family:var(--font-sans);padding:22px}
+  .lbl{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:10px}
+  .answer{font-size:var(--text-base);line-height:var(--leading-relaxed);color:var(--text-primary);max-width:640px}
+  .stack{display:flex;flex-direction:column;gap:18px}
+  .meters{display:flex;gap:20px;align-items:center}
+</style></head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { Citation, SourceCard, ConfidenceMeter } = window.ItailyDesignSystem_88d7b8;
+  const [act,setAct]=[null,null];
+  function Demo(){
+    const [active,setActive]=React.useState(1);
+    return (
+      <div className="stack">
+        <div>
+          <div className="lbl">Inline citations in an answer</div>
+          <p className="answer">
+            Under Italian law, anyone who causes unjust harm through fault must compensate it{' '}
+            <Citation index={1} active={active===1} onClick={()=>setActive(1)}>Art. 2043 c.c.</Citation>.
+            Personal-data processing additionally falls under{' '}
+            <Citation index={2} active={active===2} onClick={()=>setActive(2)}>D.Lgs. 196/2003</Citation>{' '}
+            as interpreted in{' '}
+            <Citation index={3} active={active===3} onClick={()=>setActive(3)}>Cass. civ. 12477/2019</Citation>.
+          </p>
+        </div>
+        <div>
+          <div className="lbl">Source card · Confidence</div>
+          <SourceCard index={1}
+            source="Codice Civile — Dei fatti illeciti"
+            article="Art. 2043 c.c."
+            excerpt="Qualunque fatto doloso o colposo che cagiona ad altri un danno ingiusto…"
+            relevance={92}
+            date="Vigente · agg. 14 Mar 2025" />
+          <div className="meters" style={{marginTop:14}}>
+            <ConfidenceMeter level="high"/>
+            <ConfidenceMeter level="medium"/>
+            <ConfidenceMeter level="low"/>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script>
+</body></html>

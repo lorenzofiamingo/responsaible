@@ -1,0 +1,28 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Surfaces & Text" subtitle="Page, card, inverse — and text on each." -->
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;background:var(--neutral-100);font-family:var(--font-sans);padding:18px;display:flex;gap:14px;height:150px;box-sizing:border-box}
+  .pane{flex:1;border-radius:var(--radius-md);padding:16px;display:flex;flex-direction:column;gap:6px}
+  .t1{font-weight:600} .t2{font-size:13px} .t3{font-size:12px}
+  .tag{font-family:var(--font-mono);font-size:10px;opacity:.7;margin-top:auto}
+</style></head>
+<body>
+  <div class="pane" style="background:var(--surface-page);box-shadow:inset 0 0 0 1px var(--border-default)">
+    <div class="t1" style="color:var(--text-primary)">Primary text</div>
+    <div class="t2" style="color:var(--text-secondary)">Secondary text</div>
+    <div class="t3" style="color:var(--text-tertiary)">Tertiary text</div>
+    <div class="tag" style="color:var(--text-primary)">surface-page</div>
+  </div>
+  <div class="pane" style="background:var(--surface-card);box-shadow:var(--shadow-sm)">
+    <div class="t1" style="color:var(--text-primary)">Primary text</div>
+    <div class="t2" style="color:var(--text-secondary)">Secondary text</div>
+    <div class="t3" style="color:var(--text-link)">Link text</div>
+    <div class="tag" style="color:var(--text-primary)">surface-card</div>
+  </div>
+  <div class="pane" style="background:var(--surface-inverse)">
+    <div class="t1" style="color:var(--text-on-inverse)">On inverse</div>
+    <div class="t2" style="color:var(--neutral-300)">Secondary</div>
+    <div class="t3" style="color:var(--terracotta-400)">Accent</div>
+    <div class="tag" style="color:var(--neutral-400)">surface-inverse</div>
+  </div>
+</body></html>
