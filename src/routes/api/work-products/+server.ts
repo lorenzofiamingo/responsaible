@@ -1,3 +1,4 @@
+import { CAN_SUBMIT } from '$lib/format';
 import { dbFrom } from '$lib/server/db/client';
 import { createWorkProduct, type NewWorkProductInput } from '$lib/server/db/queries';
 import { json } from '@sveltejs/kit';
@@ -72,12 +73,12 @@ function validate(raw: Raw): { ok: true; value: NewWorkProductInput } | { ok: fa
 
 /**
  * Live ingestion of a new AI work product into the supervision queue.
- * (Role gating — operator/admin only — is enforced in hooks/here once auth is wired.)
+ * Gated to the supervising lawyer.
  */
 export const POST: RequestHandler = async ({ request, platform, locals }) => {
-	// Only roles allowed to submit AI work may create.
-	if (!locals.user || !['operator', 'admin'].includes(locals.user.role)) {
-		return json({ error: 'Only an AI operator can submit work products.' }, { status: 403 });
+	// Only the supervising lawyer may submit AI work.
+	if (!locals.user || !CAN_SUBMIT.has(locals.user.role)) {
+		return json({ error: 'Only a supervising lawyer can submit work products.' }, { status: 403 });
 	}
 
 	let raw: Raw;

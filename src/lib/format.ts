@@ -91,28 +91,18 @@ export const EFFORT: Record<string, { label: string }> = {
 };
 
 export const ROLE: Record<string, { label: string; icon: string; tone: Tone; can: string }> = {
-	operator: {
-		label: 'AI operator',
-		icon: 'sparkles',
-		tone: 'info',
-		can: 'Submits AI work products into the supervision queue.'
-	},
 	supervisor: {
 		label: 'Supervising lawyer',
 		icon: 'shield-check',
 		tone: 'accent',
-		can: 'Reviews, challenges and signs off AI work; cannot submit.'
-	},
-	admin: {
-		label: 'Administrator',
-		icon: 'shield',
-		tone: 'neutral',
-		can: 'Full access — can both submit and supervise.'
+		can: 'Uploads documents, reviews, challenges and signs off AI work.'
 	}
 };
 
-export const CAN_SUBMIT = new Set(['operator', 'admin']);
-export const CAN_SUPERVISE = new Set(['supervisor', 'admin']);
+// Single role: the supervising lawyer does everything — uploads work products
+// into the queue *and* records the supervisory decisions.
+export const CAN_SUBMIT = new Set(['supervisor']);
+export const CAN_SUPERVISE = new Set(['supervisor']);
 
 const DT = new Intl.DateTimeFormat('en-GB', {
 	day: '2-digit',

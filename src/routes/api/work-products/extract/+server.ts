@@ -1,3 +1,4 @@
+import { CAN_SUBMIT } from '$lib/format';
 import { extractWorkProduct } from '$lib/server/extract';
 import { docxToText } from '$lib/server/extract/docx';
 import { pdfToText } from '$lib/server/extract/pdf';
@@ -17,9 +18,9 @@ const MIN_CHARS = 12; // below this there's nothing to analyse
  * the result so a supervisor can correct it before submitting to the queue.
  */
 export const POST: RequestHandler = async ({ request, platform, locals }) => {
-	// Same gate as creation: only an AI operator/admin can run intake.
-	if (!locals.user || !['operator', 'admin'].includes(locals.user.role)) {
-		return json({ error: 'Only an AI operator can ingest documents.' }, { status: 403 });
+	// Same gate as creation: only the supervising lawyer can run intake.
+	if (!locals.user || !CAN_SUBMIT.has(locals.user.role)) {
+		return json({ error: 'Only a supervising lawyer can ingest documents.' }, { status: 403 });
 	}
 
 	// Reject oversized uploads from the Content-Length header BEFORE buffering the

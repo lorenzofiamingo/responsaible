@@ -16,7 +16,7 @@
 		window.location.href = '/login';
 	}
 
-	const role = $derived(data.user ? (ROLE[data.user.role] ?? ROLE.operator) : null);
+	const role = $derived(data.user ? (ROLE[data.user.role] ?? ROLE.supervisor) : null);
 	const canSubmit = $derived(!!data.user && CAN_SUBMIT.has(data.user.role));
 </script>
 
