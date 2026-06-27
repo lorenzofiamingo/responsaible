@@ -55,7 +55,7 @@
 			{/if}
 		</div>
 	</button>
-	<button type="button" class="run" onclick={onRun} disabled={status === 'running'} title="Run this claim">
+	<button type="button" class="run" onclick={onRun} disabled={status === 'running'} title={`Run claim ${claim.idx + 1} check`}>
 		<Icon name={status === 'analyzed' ? 'rotate-ccw' : 'sparkles'} size={13} />
 	</button>
 </div>
