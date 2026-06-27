@@ -13,6 +13,16 @@
 		reason: string | null;
 	}>(null);
 
+	// A verification result is a point-in-time snapshot — clear it once a new
+	// decision is recorded so the banner can't show a stale count.
+	let lastLen = entries.length;
+	$effect(() => {
+		if (entries.length !== lastLen) {
+			lastLen = entries.length;
+			result = null;
+		}
+	});
+
 	async function verify() {
 		verifying = true;
 		result = null;
@@ -31,12 +41,12 @@
 	<div class="bar">
 		<span class="meta">
 			<Icon name="lock" size={13} color="var(--text-tertiary)" />
-			Hash-chained · {entries.length}
-			{entries.length === 1 ? 'action' : 'actions'} on this matter
+			{entries.length}
+			{entries.length === 1 ? 'decision' : 'decisions'} on this matter · part of the firm-wide ledger
 		</span>
 		<button class="vbtn" onclick={verify} disabled={verifying}>
 			<Icon name="shield-check" size={14} />
-			{verifying ? 'Verifying…' : 'Verify ledger'}
+			{verifying ? 'Verifying…' : 'Verify firm-wide ledger'}
 		</button>
 	</div>
 
@@ -44,7 +54,8 @@
 		<div class="result" class:ok={result.ok} class:bad={!result.ok}>
 			{#if result.ok}
 				<Icon name="circle-check" size={15} color="var(--status-success-fg)" />
-				Ledger intact — {result.length} actions verified across all matters, chain unbroken.
+				Firm-wide ledger intact — all {result.length} supervisory
+				{result.length === 1 ? 'action' : 'actions'} verified, chain unbroken.
 			{:else}
 				<Icon name="triangle-alert" size={15} color="var(--status-danger-fg)" />
 				Tamper detected at entry #{(result.brokenAt ?? 0) + 1}: {result.reason}.
