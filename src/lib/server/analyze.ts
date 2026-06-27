@@ -65,6 +65,10 @@ const EFFORT_PARAMS: Record<Effort, { maxTokens: number; temperature: number }> 
 	high: { maxTokens: 1024, temperature: 0.4 }
 };
 
+/** Anthropic models that REJECT an explicit `temperature` (only the default is allowed).
+ *  Opus 4.8 returns 400 "temperature is deprecated for this model" — so we omit it. */
+const NO_TEMPERATURE = new Set(['claude-opus-4-8']);
+
 const TIER_RANK = { small: 1, medium: 2, large: 3 } as const;
 const ROLE_RANK = { research: 1, drafter: 2, critic: 3 } as const;
 
@@ -168,6 +172,13 @@ async function callAnthropic(
 	key: string
 ): Promise<string> {
 	const { maxTokens, temperature } = EFFORT_PARAMS[effort];
+	const body: Record<string, unknown> = {
+		model: apiModel,
+		max_tokens: maxTokens,
+		system,
+		messages: [{ role: 'user', content: user }]
+	};
+	if (!NO_TEMPERATURE.has(apiModel)) body.temperature = temperature;
 	const res = await fetch('https://api.anthropic.com/v1/messages', {
 		method: 'POST',
 		headers: {
@@ -175,13 +186,7 @@ async function callAnthropic(
 			'anthropic-version': '2023-06-01',
 			'content-type': 'application/json'
 		},
-		body: JSON.stringify({
-			model: apiModel,
-			max_tokens: maxTokens,
-			temperature,
-			system,
-			messages: [{ role: 'user', content: user }]
-		}),
+		body: JSON.stringify(body),
 		signal: AbortSignal.timeout(20_000)
 	});
 	if (!res.ok) throw new Error(`anthropic ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -248,8 +253,12 @@ async function callNvidia(
 		signal: AbortSignal.timeout(20_000)
 	});
 	if (!res.ok) throw new Error(`nvidia ${res.status}: ${(await res.text()).slice(0, 200)}`);
-	const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-	const text = (data.choices?.[0]?.message?.content ?? '').trim();
+	const data = (await res.json()) as {
+		choices?: Array<{ message?: { content?: string; reasoning_content?: string; reasoning?: string } }>;
+	};
+	// Reasoning Nemotron variants put their answer in `reasoning_content` with `content` null.
+	const msg = data.choices?.[0]?.message ?? {};
+	const text = (msg.content || msg.reasoning_content || msg.reasoning || '').trim();
 	if (!text) throw new Error('nvidia: empty reply');
 	return text;
 }
@@ -474,10 +483,12 @@ async function anthropicToolTurn(
 	key: string
 ): Promise<{ stopReason: string | null; content: AnthropicBlock[] }> {
 	const { maxTokens, temperature } = EFFORT_PARAMS[effort];
+	const body: Record<string, unknown> = { model: apiModel, max_tokens: maxTokens, system, tools, messages };
+	if (!NO_TEMPERATURE.has(apiModel)) body.temperature = temperature;
 	const res = await fetch('https://api.anthropic.com/v1/messages', {
 		method: 'POST',
 		headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-		body: JSON.stringify({ model: apiModel, max_tokens: maxTokens, temperature, system, tools, messages }),
+		body: JSON.stringify(body),
 		signal: AbortSignal.timeout(25_000)
 	});
 	if (!res.ok) throw new Error(`anthropic(tools) ${res.status}: ${(await res.text()).slice(0, 200)}`);
