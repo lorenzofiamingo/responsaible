@@ -62,8 +62,25 @@ export interface DeriveClaimsInput {
 }
 
 const MODAL_OBLIGATION = /\b(shall|must|is required to|may not|prohibited|obliged)\b/i;
-// Sentence-final period that is actually an abbreviation — don't split there.
-const ABBR_TAIL = /(?:\b(?:Inc|Ltd|Corp|Co|Art|Arts|No|Nos|Reg|Dir|e\.g|i\.e|etc|vs|v|cf|Cf)\.|\b[A-Z]\.)\s*$/;
+
+// A `.!?` run followed by whitespace/end normally ends a sentence — but NOT when
+// the period belongs to an abbreviation, an initial, or a list/section marker.
+// These patterns, tested against the chunk up to and including the terminator,
+// flag "this period is not a boundary" so a list number ("1.", "1.1") or an
+// abbreviation ("no. 5", "Art. 6") is never split off as its own claim.
+// Case-insensitive, so "no.", "No." and "NO." all match.
+const ABBR_TAIL =
+	/\b(?:inc|ltd|corp|co|art|arts|no|nos|reg|dir|dirs|sec|cl|fig|para|paras|pp|p|e\.g|i\.e|etc|vs|v|cf|al|approx|mr|mrs|ms|dr|st)\.+$/i;
+// A single capital initial, e.g. the "J." in "J. Smith".
+const INITIAL_TAIL = /\b[A-Z]\.+$/;
+// A numbered/lettered list or section marker that is the whole chunk so far —
+// "1.", "1.1.", "a.", "(iv)." — where the period is part of the marker itself.
+const LIST_MARKER = /^\s*(?:\d+(?:\.\d+)*|[A-Za-z]|\([0-9A-Za-z]+\))\.+$/;
+
+/** True when the terminator ending `chunk` is part of an abbreviation/initial/marker, not a sentence end. */
+function isNonBoundary(chunk: string): boolean {
+	return ABBR_TAIL.test(chunk) || INITIAL_TAIL.test(chunk) || LIST_MARKER.test(chunk);
+}
 
 interface SentenceSpan {
 	text: string;
@@ -71,33 +88,36 @@ interface SentenceSpan {
 	end: number;
 }
 
-/** Split a body into sentence spans, preserving exact [start,end) offsets and merging abbreviations. */
+/** Trim surrounding whitespace off [from,to) and push the span (exact offsets) when non-empty. */
+function pushSpan(out: SentenceSpan[], body: string, from: number, to: number): void {
+	const raw = body.slice(from, to);
+	const lead = raw.length - raw.trimStart().length;
+	const start = from + lead;
+	const end = from + raw.trimEnd().length;
+	const text = body.slice(start, end);
+	if (text) out.push({ text, start, end });
+}
+
+/**
+ * Split a body into sentence spans, preserving exact [start,end) offsets.
+ * A `.!?` run followed by whitespace or end-of-text is a sentence boundary unless
+ * it falls inside an abbreviation, an initial, or a list/section marker (see
+ * isNonBoundary) — so "1.1" list items and "no. 5"-style references stay whole
+ * instead of being chopped at every dot.
+ */
 function splitSentences(body: string): SentenceSpan[] {
-	const re = /[^.!?]*[.!?]+(?=\s|$)/g;
-	const raw: Array<{ index: number; str: string }> = [];
-	let m: RegExpExecArray | null;
-	let lastEnd = 0;
-	while ((m = re.exec(body)) !== null) {
-		raw.push({ index: m.index, str: m[0] });
-		lastEnd = m.index + m[0].length;
-	}
-	if (lastEnd < body.length && body.slice(lastEnd).trim()) {
-		raw.push({ index: lastEnd, str: body.slice(lastEnd) });
-	}
-	// Merge a chunk into the next when it ends on an abbreviation.
 	const out: SentenceSpan[] = [];
-	for (let i = 0; i < raw.length; i++) {
-		let { index, str } = raw[i];
-		while (i < raw.length - 1 && ABBR_TAIL.test(str.trimEnd())) {
-			i++;
-			str = body.slice(index, raw[i].index + raw[i].str.length);
-		}
-		const lead = str.length - str.trimStart().length;
-		const start = index + lead;
-		const end = index + str.trimEnd().length;
-		const text = body.slice(start, end);
-		if (text) out.push({ text, start, end });
+	const re = /[.!?]+(?=\s|$)/g;
+	let segStart = 0;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(body)) !== null) {
+		const termEnd = m.index + m[0].length;
+		if (isNonBoundary(body.slice(segStart, termEnd))) continue;
+		pushSpan(out, body, segStart, termEnd);
+		segStart = termEnd;
 	}
+	// Any trailing text after the last boundary (an unterminated final sentence).
+	if (segStart < body.length) pushSpan(out, body, segStart, body.length);
 	return out;
 }
 
