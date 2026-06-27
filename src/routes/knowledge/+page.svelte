@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import Badge from '$lib/components/Badge.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import ContextMenu from '$lib/components/ContextMenu.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 	import { CAN_SUBMIT, fmtDate, KNOWLEDGE_CATEGORY, KNOWLEDGE_CATEGORY_ORDER } from '$lib/format';
 
 	let { data } = $props();
@@ -79,24 +80,37 @@
 
 	const activeCount = $derived((q.trim() ? 1 : 0) + (categoryFilter !== 'all' ? 1 : 0));
 
-	// Deep-link from an agent trace: /knowledge?doc=<id> scrolls to and highlights the
-	// document the Firm-knowledge researcher consulted (the corpus is private, so the
-	// trace links here rather than to any public URL).
+	// Deep-link / click target: /knowledge?doc=<id> OPENS the document for reading in a
+	// modal (the corpus is private, so the agent trace links here rather than to any
+	// public URL). The id is matched against the loaded corpus; unknown ids open nothing.
+	const selectedDoc = $derived.by(() => {
+		const id = page.url.searchParams.get('doc');
+		return id ? (data.docs.find((d) => d.id === id) ?? null) : null;
+	});
+
+	// Behind the modal, also surface the card: clear filters so it's in the list and
+	// scroll it into view, so it's highlighted when the reader is dismissed.
 	let highlightId = $state<string | null>(null);
 	$effect(() => {
-		const docId = page.url.searchParams.get('doc');
-		if (!docId || !data.docs.some((d) => d.id === docId)) {
+		const doc = selectedDoc;
+		if (!doc) {
 			highlightId = null;
 			return;
 		}
-		highlightId = docId;
-		// The target may be hidden behind a filter — clear filters so it's in the list.
+		highlightId = doc.id;
 		q = '';
 		categoryFilter = 'all';
 		requestAnimationFrame(() => {
-			document.getElementById(`fk-${docId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+			document.getElementById(`fk-${doc.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
 		});
 	});
+
+	// Dismiss the reader by dropping the ?doc param (keeps history clean).
+	function closeDoc() {
+		if (page.url.searchParams.get('doc')) {
+			goto('/knowledge', { replaceState: true, keepFocus: true, noScroll: true });
+		}
+	}
 
 	function clearAll() {
 		q = '';
@@ -209,27 +223,30 @@
 	<ul class="list">
 		{#each filtered as d (d.id)}
 			<li id="fk-{d.id}" class="kcard" class:armed={menu.doc?.id === d.id && (menu.open || confirmOpen)} class:target={highlightId === d.id} oncontextmenu={(e) => openMenu(e, d)}>
-				<span class="kicon" style="color: var(--color-accent)"><Icon name={cat(d.category).icon} size={18} /></span>
-				<div class="kmain">
-					<div class="ktop">
-						<Badge tone={cat(d.category).tone}><Icon name={cat(d.category).icon} size={11} /> {cat(d.category).label}</Badge>
-						<h2 class="ktitle">{d.title}</h2>
-					</div>
-					<p class="kbody">{snippet(d.body)}</p>
-					{#if tagList(d.tags).length}
-						<div class="tags">
-							{#each tagList(d.tags).slice(0, 8) as t (t)}
-								<span class="tag">{t}</span>
-							{/each}
+				<a class="kclick" href="/knowledge?doc={d.id}" data-sveltekit-noscroll aria-label="Open “{d.title}” to read it">
+					<span class="kicon" style="color: var(--color-accent)"><Icon name={cat(d.category).icon} size={18} /></span>
+					<div class="kmain">
+						<div class="ktop">
+							<Badge tone={cat(d.category).tone}><Icon name={cat(d.category).icon} size={11} /> {cat(d.category).label}</Badge>
+							<h2 class="ktitle">{d.title}</h2>
+							<Icon name="arrow-right" size={15} class="kopen" />
 						</div>
-					{/if}
-					<div class="kmeta">
-						{#if d.sourceRef}
-							<span class="m mono"><Icon name="lock" size={12} /> {d.sourceRef}</span>
+						<p class="kbody">{snippet(d.body)}</p>
+						{#if tagList(d.tags).length}
+							<div class="tags">
+								{#each tagList(d.tags).slice(0, 8) as t (t)}
+									<span class="tag">{t}</span>
+								{/each}
+							</div>
 						{/if}
-						<span class="m mono"><Icon name="clock" size={12} /> {fmtDate(d.createdAt)}</span>
+						<div class="kmeta">
+							{#if d.sourceRef}
+								<span class="m mono"><Icon name="lock" size={12} /> {d.sourceRef}</span>
+							{/if}
+							<span class="m mono"><Icon name="clock" size={12} /> {fmtDate(d.createdAt)}</span>
+						</div>
 					</div>
-				</div>
+				</a>
 			</li>
 		{/each}
 	</ul>
@@ -255,6 +272,35 @@
 		</p>
 	</ConfirmDialog>
 {/if}
+
+<!-- Document reader: opened by a card click or a /knowledge?doc=<id> deep-link. -->
+<Modal open={!!selectedDoc} title={selectedDoc?.title ?? ''} onClose={closeDoc}>
+	{#if selectedDoc}
+		<article class="doc-view">
+			<div class="doc-meta">
+				<Badge tone={cat(selectedDoc.category).tone}>
+					<Icon name={cat(selectedDoc.category).icon} size={11} /> {cat(selectedDoc.category).label}
+				</Badge>
+				{#if selectedDoc.sourceRef}
+					<span class="dm mono"><Icon name="lock" size={12} /> {selectedDoc.sourceRef}</span>
+				{/if}
+				<span class="dm mono"><Icon name="clock" size={12} /> {fmtDate(selectedDoc.createdAt)}</span>
+			</div>
+			<div class="doc-body">{selectedDoc.body}</div>
+			{#if tagList(selectedDoc.tags).length}
+				<div class="tags doc-tags">
+					{#each tagList(selectedDoc.tags) as t (t)}
+						<span class="tag">{t}</span>
+					{/each}
+				</div>
+			{/if}
+		</article>
+	{/if}
+	{#snippet footer()}
+		<span class="doc-priv"><Icon name="lock" size={12} /> Private firm document — internal only</span>
+		<button type="button" class="doc-done" onclick={closeDoc}>Done</button>
+	{/snippet}
+</Modal>
 
 <style>
 	.head {
@@ -510,14 +556,47 @@
 		gap: 12px;
 	}
 	.kcard {
-		display: flex;
-		gap: 14px;
 		background: var(--surface-card);
 		border: 1.5px solid var(--border-default);
 		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow-xs);
-		padding: var(--space-4) var(--space-5);
 		transition: border-color var(--duration-fast) var(--ease-out);
+	}
+	.kcard:hover {
+		border-color: var(--color-accent);
+	}
+	/* The whole card is a link that opens the document for reading. */
+	.kclick {
+		display: flex;
+		gap: 14px;
+		padding: var(--space-4) var(--space-5);
+		text-decoration: none;
+		color: inherit;
+		border-radius: var(--radius-lg);
+	}
+	.kclick:focus-visible {
+		outline: none;
+		box-shadow: var(--shadow-focus);
+	}
+	.kclick:hover .ktitle {
+		color: var(--color-accent);
+	}
+	/* "Open" affordance — slides in on hover/focus of the card link. */
+	.ktop :global(.kopen) {
+		margin-left: auto;
+		color: var(--text-tertiary);
+		opacity: 0;
+		transform: translateX(-4px);
+		transition:
+			opacity var(--duration-fast) var(--ease-out),
+			transform var(--duration-fast) var(--ease-out),
+			color var(--duration-fast) var(--ease-out);
+	}
+	.kclick:hover :global(.kopen),
+	.kclick:focus-visible :global(.kopen) {
+		opacity: 1;
+		transform: translateX(0);
+		color: var(--color-accent);
 	}
 	/* Highlight the card whose context menu / confirm dialog is currently open. */
 	.kcard.armed {
@@ -608,6 +687,59 @@
 	}
 	.kmeta .mono {
 		font-family: var(--font-mono);
+	}
+
+	/* --- Document reader (modal) --- */
+	.doc-view {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+	.doc-meta {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		flex-wrap: wrap;
+	}
+	.dm {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
+	}
+	.dm.mono {
+		font-family: var(--font-mono);
+	}
+	.doc-body {
+		margin: 0;
+		white-space: pre-wrap;
+		font-size: var(--text-sm);
+		line-height: var(--leading-normal);
+		color: var(--text-secondary);
+	}
+	.doc-priv {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		margin-right: auto;
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
+	}
+	.doc-done {
+		font-family: var(--font-display);
+		font-weight: var(--weight-medium);
+		font-size: var(--text-sm);
+		color: var(--color-on-accent);
+		background: var(--color-accent);
+		border: none;
+		border-radius: var(--radius-md);
+		padding: 8px 16px;
+		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease-out);
+	}
+	.doc-done:hover {
+		background: var(--color-accent-hover);
 	}
 
 	@media (max-width: 720px) {
