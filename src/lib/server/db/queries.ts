@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { GENESIS_HASH } from '../audit';
 import { deriveClaims, deriveEdges } from '../claims';
 import type { DB } from './client';
@@ -373,6 +373,31 @@ export async function createWorkProduct(db: DB, input: NewWorkProductInput): Pro
 	return id;
 }
 
+/**
+ * Delete a work product and everything generated for it — its trace, citations,
+ * risk signals, atomic claims and reasoning-graph edges — in one atomic batch.
+ *
+ * The insert-only `supervisory_action` audit rows are DELIBERATELY left untouched:
+ * the supervisory hash chain is the defensible record and must never be mutated
+ * (see CLAUDE.md). Any actions taken on a since-deleted work product therefore
+ * remain in the ledger and `/api/audit/verify` keeps passing. Returns whether the
+ * work product existed.
+ */
+export async function deleteWorkProduct(db: DB, id: string): Promise<boolean> {
+	const exists = await db.select({ id: workProduct.id }).from(workProduct).where(eq(workProduct.id, id)).get();
+	if (!exists) return false;
+	await db.batch([
+		// Edges first — they reference atomic_claim rows.
+		db.delete(claimEdge).where(eq(claimEdge.workProductId, id)),
+		db.delete(atomicClaim).where(eq(atomicClaim.workProductId, id)),
+		db.delete(riskSignal).where(eq(riskSignal.workProductId, id)),
+		db.delete(citation).where(eq(citation.workProductId, id)),
+		db.delete(agentAction).where(eq(agentAction.workProductId, id)),
+		db.delete(workProduct).where(eq(workProduct.id, id))
+	] as unknown as Parameters<typeof db.batch>[0]);
+	return true;
+}
+
 // --- Matters -----------------------------------------------------------------
 
 /**
@@ -505,6 +530,41 @@ export async function createMatter(db: DB, input: NewMatterInput): Promise<strin
 	return id;
 }
 
+/**
+ * Delete a matter and cascade to every work product filed under it (each with its
+ * own trace / citations / risks / claims / edges), in one atomic batch. As with
+ * {@link deleteWorkProduct}, the insert-only `supervisory_action` audit rows are
+ * left intact so the hash chain stays verifiable. Returns the number of work
+ * products that were removed alongside the matter (−1 if the matter didn't exist).
+ */
+export async function deleteMatter(db: DB, id: string): Promise<number> {
+	const exists = await db.select({ id: matter.id }).from(matter).where(eq(matter.id, id)).get();
+	if (!exists) return -1;
+
+	const wps = await db
+		.select({ id: workProduct.id })
+		.from(workProduct)
+		.where(eq(workProduct.matterId, id))
+		.all();
+	const wpIds = wps.map((w) => w.id);
+
+	const stmts: unknown[] = [];
+	if (wpIds.length) {
+		stmts.push(
+			db.delete(claimEdge).where(inArray(claimEdge.workProductId, wpIds)),
+			db.delete(atomicClaim).where(inArray(atomicClaim.workProductId, wpIds)),
+			db.delete(riskSignal).where(inArray(riskSignal.workProductId, wpIds)),
+			db.delete(citation).where(inArray(citation.workProductId, wpIds)),
+			db.delete(agentAction).where(inArray(agentAction.workProductId, wpIds)),
+			db.delete(workProduct).where(inArray(workProduct.id, wpIds))
+		);
+	}
+	stmts.push(db.delete(matter).where(eq(matter.id, id)));
+
+	await db.batch(stmts as unknown as Parameters<typeof db.batch>[0]);
+	return wpIds.length;
+}
+
 // --- Firm knowledge ----------------------------------------------------------
 
 export interface NewFirmKnowledgeInput {
@@ -538,4 +598,15 @@ export async function createFirmKnowledge(db: DB, input: NewFirmKnowledgeInput):
 /** The whole firm corpus for the library view (newest first). */
 export async function listFirmKnowledge(db: DB) {
 	return db.select().from(firmKnowledge).orderBy(desc(firmKnowledge.createdAt)).all();
+}
+
+/**
+ * Remove one document from the firm corpus (a single delete — no child tables,
+ * mirroring {@link createFirmKnowledge}). Returns whether the document existed.
+ */
+export async function deleteFirmKnowledge(db: DB, id: string): Promise<boolean> {
+	const exists = await db.select({ id: firmKnowledge.id }).from(firmKnowledge).where(eq(firmKnowledge.id, id)).get();
+	if (!exists) return false;
+	await db.delete(firmKnowledge).where(eq(firmKnowledge.id, id));
+	return true;
 }

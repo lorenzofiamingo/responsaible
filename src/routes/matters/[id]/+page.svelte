@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import Badge from '$lib/components/Badge.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import ContextMenu from '$lib/components/ContextMenu.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import QueueRow from '$lib/components/QueueRow.svelte';
 	import { CAN_SUBMIT, MATTER_STATUS } from '$lib/format';
@@ -11,6 +14,37 @@
 	const count = $derived(data.queue.length);
 	const pending = $derived(data.queue.filter((w) => w.status === 'pending').length);
 	const highRisk = $derived(data.queue.reduce((n, w) => n + w.risk.high, 0));
+
+	// --- Right-click → delete a work product from this matter (supervisor only). ---
+	type WP = (typeof data.queue)[number];
+	let menu = $state<{ open: boolean; x: number; y: number; wp: WP | null }>({
+		open: false,
+		x: 0,
+		y: 0,
+		wp: null
+	});
+	let confirmOpen = $state(false);
+
+	function openMenu(e: MouseEvent, wp: WP) {
+		if (!canSubmit) return;
+		e.preventDefault();
+		menu = { open: true, x: e.clientX, y: e.clientY, wp };
+	}
+	function requestDelete() {
+		menu = { ...menu, open: false };
+		confirmOpen = true;
+	}
+	async function doDelete() {
+		const wp = menu.wp;
+		if (!wp) return;
+		const res = await fetch(`/api/work-products/${wp.id}`, { method: 'DELETE' });
+		if (!res.ok) {
+			const out = (await res.json().catch(() => ({}))) as { error?: string };
+			throw new Error(out.error ?? `Could not delete the work product (HTTP ${res.status}).`);
+		}
+		await invalidateAll();
+		confirmOpen = false;
+	}
 </script>
 
 <a class="back" href="/"><Icon name="arrow-right" size={14} class="flip" /> Back to matters</a>
@@ -55,9 +89,36 @@
 {:else}
 	<ul class="queue">
 		{#each data.queue as wp (wp.id)}
-			<li><QueueRow {wp} showMatter={false} /></li>
+			<li class:armed={menu.wp?.id === wp.id && (menu.open || confirmOpen)} oncontextmenu={(e) => openMenu(e, wp)}>
+				<QueueRow {wp} showMatter={false} />
+			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#if canSubmit}
+	<ContextMenu open={menu.open} x={menu.x} y={menu.y} onClose={() => (menu = { ...menu, open: false })}>
+		<button type="button" class="cmenu-item danger" role="menuitem" onclick={requestDelete}>
+			<Icon name="trash-2" size={15} /> Delete work product
+		</button>
+	</ContextMenu>
+
+	<ConfirmDialog
+		open={confirmOpen}
+		title="Delete work product?"
+		confirmLabel="Delete work product"
+		onConfirm={doDelete}
+		onClose={() => (confirmOpen = false)}
+	>
+		<p>
+			Permanently delete <strong>“{menu.wp?.title}”</strong> and everything generated for it — its
+			agent trace, citations, risk signals and per-claim analysis?
+		</p>
+		<p class="cnote">
+			The insert-only supervisory audit trail is preserved: any actions already recorded against this
+			work product stay in the hash-chained ledger. This cannot be undone.
+		</p>
+	</ConfirmDialog>
 {/if}
 
 <style>
@@ -169,6 +230,16 @@
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
+	}
+	/* Outline the row whose context menu / confirm dialog is currently open. */
+	.queue li.armed {
+		border-radius: var(--radius-lg);
+		box-shadow: 0 0 0 2px var(--color-accent);
+	}
+	.cnote {
+		margin: 0;
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
 	}
 
 	.empty {

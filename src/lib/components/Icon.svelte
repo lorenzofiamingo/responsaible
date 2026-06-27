@@ -36,6 +36,7 @@
 	import shieldAlert from '$lib/icons/shield-alert.svg?raw';
 	import shieldCheck from '$lib/icons/shield-check.svg?raw';
 	import sparkles from '$lib/icons/sparkles.svg?raw';
+	import trash2 from '$lib/icons/trash-2.svg?raw';
 	import triangleAlert from '$lib/icons/triangle-alert.svg?raw';
 	import xIcon from '$lib/icons/x.svg?raw';
 
@@ -75,6 +76,7 @@
 		'shield-alert': shieldAlert,
 		'shield-check': shieldCheck,
 		sparkles,
+		'trash-2': trash2,
 		'triangle-alert': triangleAlert,
 		x: xIcon
 	};

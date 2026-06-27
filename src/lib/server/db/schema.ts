@@ -276,9 +276,11 @@ export const supervisoryAction = sqliteTable(
 	'supervisory_action',
 	{
 		id: text('id').primaryKey(),
-		workProductId: text('work_product_id')
-			.notNull()
-			.references(() => workProduct.id),
+		/** The work product the action was taken on. INTENTIONALLY no SQL-level FK:
+		 *  this insert-only ledger must OUTLIVE a deleted work product — deleting work
+		 *  must never require deleting (or mutating) audit rows, or the hash chain
+		 *  would break. Same app-enforces-existence philosophy as `work_product.matterId`. */
+		workProductId: text('work_product_id').notNull(),
 		actorEmail: text('actor_email').notNull(),
 		action: text('action', {
 			enum: ['approve', 'amend', 'reject', 'request_rework', 'escalate', 'override']

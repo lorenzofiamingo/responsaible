@@ -1,11 +1,46 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import Badge from '$lib/components/Badge.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import ContextMenu from '$lib/components/ContextMenu.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { CAN_SUBMIT, fmtDate, KNOWLEDGE_CATEGORY, KNOWLEDGE_CATEGORY_ORDER } from '$lib/format';
 
 	let { data } = $props();
 
 	const canSubmit = $derived(!!data.user && CAN_SUBMIT.has(data.user.role));
+
+	// --- Right-click → delete (supervisor only). One context menu + one confirm
+	// dialog, retargeted at whichever document was right-clicked. ---
+	type Doc = (typeof data.docs)[number];
+	let menu = $state<{ open: boolean; x: number; y: number; doc: Doc | null }>({
+		open: false,
+		x: 0,
+		y: 0,
+		doc: null
+	});
+	let confirmOpen = $state(false);
+
+	function openMenu(e: MouseEvent, doc: Doc) {
+		if (!canSubmit) return;
+		e.preventDefault();
+		menu = { open: true, x: e.clientX, y: e.clientY, doc };
+	}
+	function requestDelete() {
+		menu = { ...menu, open: false };
+		confirmOpen = true;
+	}
+	async function doDelete() {
+		const doc = menu.doc;
+		if (!doc) return;
+		const res = await fetch(`/api/firm-knowledge/${doc.id}`, { method: 'DELETE' });
+		if (!res.ok) {
+			const out = (await res.json().catch(() => ({}))) as { error?: string };
+			throw new Error(out.error ?? `Could not delete the document (HTTP ${res.status}).`);
+		}
+		await invalidateAll();
+		confirmOpen = false;
+	}
 
 	// --- Search & filter (all client-side: the whole corpus is loaded, so filtering
 	// is instant and survives no network — same approach as the queue/matters lists). ---
@@ -153,7 +188,7 @@
 {:else}
 	<ul class="list">
 		{#each filtered as d (d.id)}
-			<li class="kcard">
+			<li class="kcard" class:armed={menu.doc?.id === d.id && (menu.open || confirmOpen)} oncontextmenu={(e) => openMenu(e, d)}>
 				<span class="kicon" style="color: var(--color-accent)"><Icon name={cat(d.category).icon} size={18} /></span>
 				<div class="kmain">
 					<div class="ktop">
@@ -178,6 +213,27 @@
 			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#if canSubmit}
+	<ContextMenu open={menu.open} x={menu.x} y={menu.y} onClose={() => (menu = { ...menu, open: false })}>
+		<button type="button" class="cmenu-item danger" role="menuitem" onclick={requestDelete}>
+			<Icon name="trash-2" size={15} /> Delete document
+		</button>
+	</ContextMenu>
+
+	<ConfirmDialog
+		open={confirmOpen}
+		title="Delete document?"
+		confirmLabel="Delete document"
+		onConfirm={doDelete}
+		onClose={() => (confirmOpen = false)}
+	>
+		<p>
+			Permanently delete <strong>“{menu.doc?.title}”</strong> from the firm corpus? The Knowledge
+			researcher will no longer draw on it. This cannot be undone.
+		</p>
+	</ConfirmDialog>
 {/if}
 
 <style>
@@ -441,6 +497,11 @@
 		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow-xs);
 		padding: var(--space-4) var(--space-5);
+		transition: border-color var(--duration-fast) var(--ease-out);
+	}
+	/* Highlight the card whose context menu / confirm dialog is currently open. */
+	.kcard.armed {
+		border-color: var(--color-accent);
 	}
 	.kicon {
 		flex: none;

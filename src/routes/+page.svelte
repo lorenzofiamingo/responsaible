@@ -1,6 +1,9 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import Badge from '$lib/components/Badge.svelte';
 	import ConfidenceMeter from '$lib/components/ConfidenceMeter.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import ContextMenu from '$lib/components/ContextMenu.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { CAN_SUBMIT, MATTER_STATUS } from '$lib/format';
 
@@ -9,6 +12,37 @@
 	const canSubmit = $derived(!!data.user && CAN_SUBMIT.has(data.user.role));
 
 	type Card = (typeof data.matters)[number];
+
+	// --- Right-click → delete a matter (supervisor only). Deleting a matter cascades
+	// to every work product filed under it; the modal warns with that count. ---
+	let menu = $state<{ open: boolean; x: number; y: number; card: Card | null }>({
+		open: false,
+		x: 0,
+		y: 0,
+		card: null
+	});
+	let confirmOpen = $state(false);
+
+	function openMenu(e: MouseEvent, card: Card) {
+		if (!canSubmit) return;
+		e.preventDefault();
+		menu = { open: true, x: e.clientX, y: e.clientY, card };
+	}
+	function requestDelete() {
+		menu = { ...menu, open: false };
+		confirmOpen = true;
+	}
+	async function doDelete() {
+		const card = menu.card;
+		if (!card) return;
+		const res = await fetch(`/api/matters/${card.matter.id}`, { method: 'DELETE' });
+		if (!res.ok) {
+			const out = (await res.json().catch(() => ({}))) as { error?: string };
+			throw new Error(out.error ?? `Could not delete the matter (HTTP ${res.status}).`);
+		}
+		await invalidateAll();
+		confirmOpen = false;
+	}
 
 	// Client-side filter/sort over the already-loaded matters (small list, no network).
 	let q = $state('');
@@ -177,7 +211,10 @@
 {:else}
 	<ul class="mgrid">
 		{#each filtered as c (c.matter.id)}
-			<li>
+			<li
+				class:armed={menu.card?.matter.id === c.matter.id && (menu.open || confirmOpen)}
+				oncontextmenu={(e) => openMenu(e, c)}
+			>
 				<a class="mcard" href="/matters/{c.matter.id}">
 					<div class="mtop">
 						<span class="mname">
@@ -224,6 +261,36 @@
 			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#if canSubmit}
+	<ContextMenu open={menu.open} x={menu.x} y={menu.y} onClose={() => (menu = { ...menu, open: false })}>
+		<button type="button" class="cmenu-item danger" role="menuitem" onclick={requestDelete}>
+			<Icon name="trash-2" size={15} /> Delete matter
+		</button>
+	</ContextMenu>
+
+	<ConfirmDialog
+		open={confirmOpen}
+		title="Delete matter?"
+		confirmLabel="Delete matter"
+		onConfirm={doDelete}
+		onClose={() => (confirmOpen = false)}
+	>
+		<p>
+			Permanently delete the matter <strong>“{menu.card?.matter.name}”</strong>
+			{#if menu.card && menu.card.count > 0}
+				and its <strong>{menu.card.count} work product{menu.card.count === 1 ? '' : 's'}</strong>
+				(with all their traces, citations, risks and claims)?
+			{:else}
+				?
+			{/if}
+		</p>
+		<p class="cnote">
+			The insert-only supervisory audit trail is preserved — recorded actions stay in the
+			hash-chained ledger. This cannot be undone.
+		</p>
+	</ConfirmDialog>
 {/if}
 
 <style>
@@ -505,6 +572,16 @@
 		transform: translateY(-2px);
 		border-color: var(--border-strong);
 		border-left-color: var(--color-accent);
+	}
+	/* Outline the card whose context menu / confirm dialog is currently open. */
+	.mgrid li.armed .mcard {
+		border-color: var(--color-accent);
+		box-shadow: 0 0 0 2px var(--color-accent);
+	}
+	.cnote {
+		margin: 0;
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
 	}
 	.mtop {
 		display: flex;
