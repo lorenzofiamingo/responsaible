@@ -86,13 +86,10 @@
 		selectedId = id;
 	}
 
-	// Keep the chosen claim visible in the middle column, and reset the analysis
-	// pane to the top so a new selection always lands on the claim heading rather
-	// than wherever the previous claim's panel was scrolled to.
+	// Keep the chosen claim visible in the middle column.
 	$effect(() => {
 		if (!selectedId) return;
 		document.getElementById(`claim-${selectedId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-		document.querySelector('.col-detail .scroll')?.scrollTo({ top: 0 });
 	});
 
 	const analyzed = $derived(Object.values(statusById).filter((s) => s === 'analyzed').length);
@@ -276,40 +273,24 @@
 		color: var(--text-secondary);
 	}
 
-	/* Full-bleed breakout of the 1200px container so three columns get room. On
-	   wide screens the layout gives this a bounded height (the viewport minus the
-	   top bar and page padding) and it fills that; below the breakpoint it has no
-	   bound and simply flows with the page. */
+	/* Full-bleed breakout of the 1200px container so the three columns get room.
+	   Each column is as tall as its own content; the page scrolls normally. */
 	.workarea {
 		width: 100vw;
 		margin-left: calc(50% - 50vw);
-		padding: 0 var(--space-6);
-		display: flex;
-		flex-direction: column;
-		flex: 1;
-		min-height: 0;
+		padding: 0 var(--space-6) var(--space-6);
 	}
 	.wa-inner {
-		width: 100%;
 		max-width: 1500px;
 		margin: 0 auto;
-		display: flex;
-		flex-direction: column;
-		flex: 1;
-		min-height: 0;
 	}
 
-	/* The three panes are one full-height work surface: a single grid row that
-	   fills the available height, so every column is exactly the same height and
-	   each scrolls on its own — no column sticks while another flows. */
+	/* Three columns, top-aligned, each sized to its own content. */
 	.cols {
 		display: grid;
 		grid-template-columns: minmax(300px, 1.1fr) minmax(260px, 0.9fr) minmax(320px, 1.2fr);
-		grid-template-rows: 1fr;
 		gap: var(--space-5);
-		align-items: stretch;
-		flex: 1;
-		min-height: 0;
+		align-items: start;
 	}
 
 	.panel {
@@ -319,11 +300,6 @@
 		box-shadow: var(--shadow-sm);
 		padding: var(--space-5);
 		min-width: 0;
-		/* Fixed-height pane: title/controls stay put, only .scroll moves. */
-		display: flex;
-		flex-direction: column;
-		min-height: 0;
-		overflow: hidden;
 	}
 	.ptitle {
 		display: flex;
@@ -345,49 +321,13 @@
 		line-height: var(--leading-normal);
 	}
 
-	/* Each pane scrolls within its own height; the title/controls above stay put. */
-	.scroll {
-		flex: 1;
-		overflow-y: auto;
-		min-height: 0;
-		/* Symmetric negative margin + padding give the selection focus ring room on
-		   every side so the first/last card's ring isn't clipped by the scroll overflow. */
-		margin: calc(-1 * var(--space-2));
-		padding: var(--space-2);
-	}
-
-	/* Below the three-up breakpoint, collapse to two columns then one. (1199.98px
-	   shares a clean edge with the layout's min-width:1200px shell — no dead zone.)
-	   The full-height fill rules above go inert here automatically, since nothing
-	   gives .workarea a bounded height to fill, so the panes flow and the page
-	   scrolls. The same graceful flow also covers wide-but-short viewports, where
-	   the layout drops the shell on the min-height gate. */
-	@media (max-width: 1199.98px) {
-		.workarea {
-			flex: initial;
-			min-height: auto;
-			padding-bottom: var(--space-6);
-		}
-		.wa-inner {
-			flex: initial;
-			min-height: auto;
-		}
+	/* Below the three-up breakpoint, collapse to two columns then one. */
+	@media (max-width: 1200px) {
 		.cols {
-			flex: initial;
-			min-height: auto;
 			grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-			grid-template-rows: auto;
-			align-items: start;
 		}
 		.col-doc {
 			grid-column: 1 / -1;
-		}
-		.panel {
-			overflow: visible;
-		}
-		.scroll {
-			flex: initial;
-			max-height: 70vh;
 		}
 	}
 	@media (max-width: 820px) {
