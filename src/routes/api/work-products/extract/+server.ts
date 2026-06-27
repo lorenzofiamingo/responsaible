@@ -102,10 +102,19 @@ export const POST: RequestHandler = async ({ request, platform, locals }) => {
 			{ status: 400 }
 		);
 	}
-	if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS);
+	// Documents up to MAX_CHARS are analysed in full; only beyond it do we slice —
+	// and we tell the operator rather than truncating silently.
+	const overflow = Math.max(0, text.length - MAX_CHARS);
+	if (overflow > 0) text = text.slice(0, MAX_CHARS);
 
 	const apiKey = platform?.env?.GEMINI_API_KEY ?? platform?.env?.GOOGLE_API_KEY;
 	const draft = await extractWorkProduct(text, { sourceKind, filename, apiKey });
+
+	if (overflow > 0) {
+		draft.meta.warnings.push(
+			`Document exceeds the ${MAX_CHARS.toLocaleString('en-GB')}-character analysis limit; the last ${overflow.toLocaleString('en-GB')} characters were not analysed. Split it or review the remainder separately.`
+		);
+	}
 
 	return json({ draft });
 };

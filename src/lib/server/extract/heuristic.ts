@@ -17,7 +17,13 @@ import type {
 } from '$lib/types';
 import { detectCitations, suspiciousCelex, type DetectedCitation } from './celex';
 
-const BODY_CAP = 6000;
+// Keep the stored/displayed body in step with the intake endpoint's analysis
+// ceiling (MAX_CHARS in routes/api/work-products/extract/+server.ts), which has
+// already sliced `text` to this length. Matching it means a normal document is
+// never truncated below what was analysed, so EVERY detected citation keeps its
+// inline [n] marker — preserving the 1:1 marker↔citation invariant this module
+// documents. It only bites as a defensive bound for direct callers (no endpoint).
+const BODY_CAP = 60_000;
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
