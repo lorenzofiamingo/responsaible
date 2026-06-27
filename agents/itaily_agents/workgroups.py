@@ -92,7 +92,7 @@ PRESETS: dict[str, dict[str, Any]] = {
             },
             {
                 "role": "research",
-                "model": "claude-sonnet",
+                "model": "perplexity",
                 "effort": "med",
                 "desc": "Corroborates with targeted open-web research on trusted domains.",
                 "tools": ["web"],
@@ -121,7 +121,7 @@ PRESETS: dict[str, dict[str, Any]] = {
             },
             {
                 "role": "research",
-                "model": "claude-sonnet",
+                "model": "perplexity",
                 "effort": "med",
                 "desc": "Web researcher — targeted open-web corroboration via Perplexity on trusted domains.",
                 "tools": ["web"],
@@ -166,7 +166,7 @@ FIGURE_PRESETS: dict[str, dict[str, Any]] = {
         "icon": "external-link",
         "figure": {
             "role": "research",
-            "model": "claude-sonnet",
+            "model": "perplexity",
             "effort": "med",
             "desc": "Targeted open-web research via Perplexity, scoped to trusted EU domains.",
             "tools": ["web"],

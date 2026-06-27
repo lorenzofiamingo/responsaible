@@ -49,11 +49,15 @@ const API_MODEL: Record<ModelId, string> = {
 	'claude-sonnet': 'claude-sonnet-4-6',
 	'claude-opus-4-8': 'claude-opus-4-8',
 	// NVIDIA NIM exposes Nemotron under this OpenAI-style id; override via env.
-	nemotron: 'nvidia/llama-3.3-nemotron-super-49b-v1'
+	nemotron: 'nvidia/llama-3.3-nemotron-super-49b-v1',
+	// Perplexity's online, web-grounded model (override the variant via PERPLEXITY_MODEL).
+	perplexity: 'sonar'
 };
 
 /** Default NVIDIA NIM endpoint; point at a self-hosted NIM for true on-prem privacy. */
 const NIM_DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
+/** Perplexity chat-completions endpoint (OpenAI-compatible). */
+const PERPLEXITY_URL = 'https://api.perplexity.ai/chat/completions';
 
 const EFFORT_PARAMS: Record<Effort, { maxTokens: number; temperature: number }> = {
 	low: { maxTokens: 512, temperature: 0.2 },
@@ -250,6 +254,36 @@ async function callNvidia(
 	return text;
 }
 
+/** Perplexity's chat-completions API (OpenAI-compatible) — the Web researcher's model. */
+async function callPerplexity(
+	apiModel: string,
+	effort: Effort,
+	system: string,
+	user: string,
+	key: string
+): Promise<string> {
+	const { maxTokens, temperature } = EFFORT_PARAMS[effort];
+	const res = await fetch(PERPLEXITY_URL, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+		body: JSON.stringify({
+			model: apiModel,
+			max_tokens: maxTokens,
+			temperature,
+			messages: [
+				{ role: 'system', content: system },
+				{ role: 'user', content: user }
+			]
+		}),
+		signal: AbortSignal.timeout(20_000)
+	});
+	if (!res.ok) throw new Error(`perplexity ${res.status}: ${(await res.text()).slice(0, 200)}`);
+	const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+	const text = (data.choices?.[0]?.message?.content ?? '').trim();
+	if (!text) throw new Error('perplexity: empty reply');
+	return text;
+}
+
 async function callModel(
 	model: ModelId,
 	effort: Effort,
@@ -267,6 +301,10 @@ async function callModel(
 		if (!env.NVIDIA_NIM_API_KEY) throw new Error('NVIDIA_NIM_API_KEY not configured');
 		const apiId = env.ITAILY_NEMOTRON_MODEL || apiModel;
 		return callNvidia(apiId, effort, system, user, env.NVIDIA_NIM_API_KEY, env.NVIDIA_NIM_BASE_URL || NIM_DEFAULT_BASE);
+	}
+	if (provider === 'perplexity') {
+		if (!env.PERPLEXITY_API_KEY) throw new Error('PERPLEXITY_API_KEY not configured');
+		return callPerplexity(env.PERPLEXITY_MODEL || apiModel, effort, system, user, env.PERPLEXITY_API_KEY);
 	}
 	if (!env.GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY not configured');
 	return callGoogle(apiModel, effort, system, user, env.GOOGLE_API_KEY);
@@ -589,7 +627,12 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 			const trace: FigureTrace[] = [
 				{ ...stamp, kind: 'search', summary: web.answer.slice(0, 200) || 'Retrieved open-web sources.', sources: web.sources, ms: retrieveMs }
 			];
-			// The figure's own model scopes the open-web result to THIS claim.
+			// When the figure's model IS Perplexity, the search call above already IS the
+			// model's reasoning — use its answer directly, no redundant second call.
+			if (MODELS[figure.model].provider === 'perplexity') {
+				return { finding: { tool, assessment: web.answer.slice(0, 400) || 'Open-web research completed.', sources: web.sources }, trace };
+			}
+			// Otherwise the figure's own model scopes the open-web result to THIS claim.
 			try {
 				const u =
 					`Claim:\n"${claimText}"\n\nOpen-web research (Perplexity, trusted domains):\n${web.answer}\n` +

@@ -17,7 +17,8 @@ export type ModelId =
 	| 'claude-haiku'
 	| 'claude-sonnet'
 	| 'claude-opus-4-8'
-	| 'nemotron';
+	| 'nemotron'
+	| 'perplexity';
 
 export type PresetId =
 	| 'quick_scan'
@@ -67,7 +68,7 @@ export const MODELS: Record<
 	ModelId,
 	{
 		label: string;
-		provider: 'google' | 'anthropic' | 'nvidia';
+		provider: 'google' | 'anthropic' | 'nvidia' | 'perplexity';
 		tier: 'small' | 'medium' | 'large';
 		/** Open weights, self-hostable — keeps confidential input on-perimeter. */
 		open?: boolean;
@@ -80,7 +81,10 @@ export const MODELS: Record<
 	'claude-opus-4-8': { label: 'Claude Opus 4.8', provider: 'anthropic', tier: 'large' },
 	// Open-weights model served via NVIDIA NIM (OpenAI-compatible). Self-hostable,
 	// so the privacy-sensitive firm-knowledge figure can keep its input private.
-	nemotron: { label: 'NVIDIA Nemotron', provider: 'nvidia', tier: 'large', open: true }
+	nemotron: { label: 'NVIDIA Nemotron', provider: 'nvidia', tier: 'large', open: true },
+	// Online, web-grounded model — the Web researcher's native model (it searches the
+	// open web with the figure's domain filter). Not a general reasoner; pair with the web tool.
+	perplexity: { label: 'Perplexity Sonar', provider: 'perplexity', tier: 'small' }
 };
 
 export const MODEL_IDS = Object.keys(MODELS) as ModelId[];
@@ -167,7 +171,7 @@ export const FIGURE_PRESETS: Record<FigurePresetId, { label: string; icon: strin
 		icon: RESEARCH_TOOL.web.icon,
 		make: () => ({
 			role: 'research',
-			model: 'claude-sonnet',
+			model: 'perplexity',
 			effort: 'med',
 			desc: 'Targeted open-web research via Perplexity, scoped to trusted EU domains.',
 			tools: ['web'],
@@ -272,7 +276,7 @@ export const PRESETS: Record<PresetId, WorkGroup> = {
 			},
 			{
 				role: 'research',
-				model: 'claude-sonnet',
+				model: 'perplexity',
 				effort: 'med',
 				desc: 'Corroborates with targeted open-web research on trusted domains.',
 				tools: ['web'],
@@ -302,7 +306,7 @@ export const PRESETS: Record<PresetId, WorkGroup> = {
 			},
 			{
 				role: 'research',
-				model: 'claude-sonnet',
+				model: 'perplexity',
 				effort: 'med',
 				desc: 'Web researcher — targeted open-web corroboration via Perplexity on trusted domains.',
 				tools: ['web'],
