@@ -4,109 +4,72 @@
 	import WorkGroupConfigurator from './WorkGroupConfigurator.svelte';
 
 	let {
-		globalGroup,
-		applyAll,
+		bulkGroup,
 		analyzed,
 		total,
 		running,
-		onModeChange,
-		onGlobalChange,
+		onApplyAll,
 		onRunAll
 	}: {
-		globalGroup: WorkGroup;
-		applyAll: boolean;
+		bulkGroup: WorkGroup;
 		analyzed: number;
 		total: number;
 		running: boolean;
-		onModeChange: (applyAll: boolean) => void;
-		onGlobalChange: (wg: WorkGroup) => void;
+		onApplyAll: (wg: WorkGroup) => void;
 		onRunAll: () => void;
 	} = $props();
+
+	let bulkOpen = $state(false);
 </script>
 
-<section class="controls">
-	<div class="bar">
-		<div class="left">
-			<h2 class="title"><Icon name="git-branch" size={16} /> Run the agents</h2>
-			<span class="progress" class:done={analyzed === total && total > 0}>
-				<Icon name={analyzed === total && total > 0 ? 'circle-check' : 'list-checks'} size={13} />
-				{analyzed} / {total} claims analyzed
-			</span>
-		</div>
-		<button class="run-all" onclick={onRunAll} disabled={running || total === 0}>
-			<Icon name="sparkles" size={15} />
-			{running ? 'Running…' : 'Run all in parallel'}
+<div class="runctl">
+	<button class="run-all" onclick={onRunAll} disabled={running || total === 0}>
+		<Icon name="sparkles" size={15} />
+		{running ? 'Running…' : 'Run all checks'}
+	</button>
+
+	<div class="meta">
+		<span class="progress" class:done={analyzed === total && total > 0}>
+			<Icon name={analyzed === total && total > 0 ? 'circle-check' : 'list-checks'} size={12} />
+			{analyzed} / {total} analyzed
+		</span>
+		<button
+			type="button"
+			class="bulk-toggle"
+			class:on={bulkOpen}
+			onclick={() => (bulkOpen = !bulkOpen)}
+			disabled={total === 0}
+		>
+			<Icon name="git-fork" size={12} /> One work group for all
+			<Icon name={bulkOpen ? 'chevron-down' : 'chevron-right'} size={12} />
 		</button>
 	</div>
 
-	<div class="mode" role="group" aria-label="work group mode">
-		<button type="button" class="mtab" class:on={!applyAll} onclick={() => onModeChange(false)}>
-			<Icon name="git-fork" size={13} /> Per-claim presets
-		</button>
-		<button type="button" class="mtab" class:on={applyAll} onclick={() => onModeChange(true)}>
-			<Icon name="list-checks" size={13} /> One work group for all
-		</button>
-	</div>
-
-	{#if applyAll}
-		<div class="global">
-			<p class="ghint">This work group runs against every claim, overriding the per-claim presets.</p>
-			<WorkGroupConfigurator value={globalGroup} onChange={onGlobalChange} />
+	{#if bulkOpen}
+		<div class="bulk">
+			<p class="bhint">
+				Sets every claim to this work group at once. Tune any single claim afterwards in its panel.
+			</p>
+			<WorkGroupConfigurator value={bulkGroup} onChange={onApplyAll} compact />
 		</div>
-	{:else}
-		<p class="ghint auto">
-			Each claim keeps the preset the splitter assigned to it (citation-heavy claims get the deep
-			check). Override any single claim in its detail panel.
-		</p>
 	{/if}
-</section>
+</div>
 
 <style>
-	.controls {
+	.runctl {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-4);
-		background: var(--surface-card);
-		border: 1.5px solid var(--border-default);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-sm);
-		padding: var(--space-4) var(--space-5);
-	}
-	.bar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-4);
-		flex-wrap: wrap;
-	}
-	.left {
-		display: flex;
-		align-items: center;
-		gap: 14px;
-		flex-wrap: wrap;
-	}
-	.title {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin: 0;
-		font-size: var(--text-md);
-	}
-	.progress {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		font-family: var(--font-mono);
-		font-size: var(--text-xs);
-		color: var(--text-tertiary);
-	}
-	.progress.done {
-		color: var(--status-success-fg);
+		gap: var(--space-3);
+		margin-bottom: var(--space-4);
+		padding-bottom: var(--space-4);
+		border-bottom: 1.5px solid var(--border-subtle);
 	}
 	.run-all {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 8px;
+		width: 100%;
 		padding: 10px 16px;
 		font-family: var(--font-display);
 		font-weight: var(--weight-medium);
@@ -125,45 +88,63 @@
 		opacity: 0.6;
 		cursor: progress;
 	}
-	.mode {
-		display: inline-flex;
-		gap: 4px;
-		padding: 3px;
-		background: var(--surface-sunken);
-		border-radius: var(--radius-md);
-		width: fit-content;
+	.meta {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		flex-wrap: wrap;
 	}
-	.mtab {
+	.progress {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
-		padding: 6px 12px;
+		gap: 5px;
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
+	}
+	.progress.done {
+		color: var(--status-success-fg);
+	}
+	.bulk-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 5px 9px;
 		font-family: var(--font-display);
 		font-weight: var(--weight-medium);
-		font-size: var(--text-sm);
+		font-size: var(--text-xs);
 		color: var(--text-secondary);
-		background: transparent;
-		border: none;
+		background: var(--surface-sunken);
+		border: 1.5px solid var(--border-default);
 		border-radius: var(--radius-sm);
 		cursor: pointer;
+		transition: all var(--duration-fast) var(--ease-out);
 	}
-	.mtab.on {
-		background: var(--surface-card);
+	.bulk-toggle:hover:not(:disabled) {
+		border-color: var(--border-strong);
 		color: var(--text-primary);
-		box-shadow: var(--shadow-xs);
 	}
-	.global {
+	.bulk-toggle.on {
+		border-color: var(--color-accent);
+		color: var(--text-primary);
+	}
+	.bulk-toggle:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.bulk {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
+		padding: var(--space-3);
+		background: var(--surface-sunken);
+		border-radius: var(--radius-md);
 	}
-	.ghint {
+	.bhint {
 		margin: 0;
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
 		line-height: var(--leading-normal);
-	}
-	.ghint.auto {
-		max-width: 70ch;
 	}
 </style>
