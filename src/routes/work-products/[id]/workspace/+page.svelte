@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { invalidateAll } from '$app/navigation';
 	import Icon from '$lib/components/Icon.svelte';
 	import ClaimDetail from '$lib/components/workarea/ClaimDetail.svelte';
 	import ClaimGraph from '$lib/components/workarea/ClaimGraph.svelte';
@@ -144,6 +145,11 @@
 				}
 			}
 			if (buf.trim()) applyResult(JSON.parse(buf.trim()));
+			// The run persisted per-claim results to the DB. Re-run the load so the
+			// header's per-claim confidence roll-up reflects what was just analyzed.
+			// Local run state (statusById/resultById) is initialised once and is not
+			// reset by this, so the live grid keeps the results we just streamed in.
+			await invalidateAll();
 		} catch {
 			for (const id of ids) statusById[id] = resultById[id] ? 'analyzed' : 'pending';
 		}

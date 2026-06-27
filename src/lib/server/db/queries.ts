@@ -1,4 +1,4 @@
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import { GENESIS_HASH } from '../audit';
 import type { DB } from './client';
 import {
@@ -61,6 +61,60 @@ export async function getClaims(db: DB, workProductId: string) {
 		.where(eq(atomicClaim.workProductId, workProductId))
 		.orderBy(asc(atomicClaim.idx))
 		.all();
+}
+
+/**
+ * Document-level confidence under per-claim supervision: the mean confidence of
+ * the claims actually analyzed so far. `mean` is null until at least one claim
+ * has been run — there is no honest single number before the supervisor studies
+ * the document claim by claim. (The work product's seeded `confidence` is only
+ * the generator's self-reported prior, used for queue triage — not a verdict.)
+ */
+export async function getClaimAssessment(db: DB, workProductId: string) {
+	const row = await db
+		.select({
+			total: sql<number>`count(*)`,
+			analyzed: sql<number>`sum(case when ${atomicClaim.status} = 'analyzed' then 1 else 0 end)`,
+			sumConf: sql<number>`sum(case when ${atomicClaim.status} = 'analyzed' then ${atomicClaim.confidence} else 0 end)`
+		})
+		.from(atomicClaim)
+		.where(eq(atomicClaim.workProductId, workProductId))
+		.get();
+	const total = Number(row?.total ?? 0);
+	const analyzed = Number(row?.analyzed ?? 0);
+	const mean = analyzed > 0 ? Number(row?.sumConf ?? 0) / analyzed : null;
+	return { total, analyzed, mean };
+}
+
+export interface ClaimAssessment {
+	total: number;
+	analyzed: number;
+	mean: number | null;
+}
+
+/**
+ * The same per-claim assessment as {@link getClaimAssessment}, but for EVERY work
+ * product in one grouped pass — for the home queue, so each row's confidence can
+ * reflect the claims actually studied instead of the seeded prior.
+ */
+export async function getClaimAssessments(db: DB): Promise<Map<string, ClaimAssessment>> {
+	const rows = await db
+		.select({
+			workProductId: atomicClaim.workProductId,
+			total: sql<number>`count(*)`,
+			analyzed: sql<number>`sum(case when ${atomicClaim.status} = 'analyzed' then 1 else 0 end)`,
+			sumConf: sql<number>`sum(case when ${atomicClaim.status} = 'analyzed' then ${atomicClaim.confidence} else 0 end)`
+		})
+		.from(atomicClaim)
+		.groupBy(atomicClaim.workProductId)
+		.all();
+	const map = new Map<string, ClaimAssessment>();
+	for (const r of rows) {
+		const total = Number(r.total);
+		const analyzed = Number(r.analyzed);
+		map.set(r.workProductId, { total, analyzed, mean: analyzed > 0 ? Number(r.sumConf) / analyzed : null });
+	}
+	return map;
 }
 
 /** One claim by id (the analyze endpoint's seeded-fallback read). */

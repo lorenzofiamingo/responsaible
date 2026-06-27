@@ -35,7 +35,7 @@
 			if (typeFilter !== 'all' && wp.type !== typeFilter) return false;
 			if (statusFilter !== 'all' && wp.status !== statusFilter) return false;
 			if (riskFilter !== 'all' && riskLevel(wp.risk) !== riskFilter) return false;
-			if (confFilter !== 'all' && confLevel(wp.confidence) !== confFilter) return false;
+			if (confFilter !== 'all' && confLevel(wp.effConfidence) !== confFilter) return false;
 			if (needle) {
 				const hay =
 					`${wp.title} ${wp.summary} ${wp.matterName} ${wp.matterRef} ${wp.agentName} ${WP_TYPE[wp.type].label}`.toLowerCase();
@@ -45,9 +45,9 @@
 		});
 
 		const sorted = [...rows];
-		if (sortBy === 'confidence') sorted.sort((a, b) => a.confidence - b.confidence);
+		if (sortBy === 'confidence') sorted.sort((a, b) => a.effConfidence - b.effConfidence);
 		else if (sortBy === 'recent') sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-		else sorted.sort((a, b) => b.priority - a.priority || a.confidence - b.confidence);
+		else sorted.sort((a, b) => b.priority - a.priority || a.effConfidence - b.effConfidence);
 		return sorted;
 	});
 
@@ -240,7 +240,20 @@
 					</div>
 
 					<div class="right">
-						<ConfidenceMeter value={wp.confidence} />
+						<span class="conf">
+							{#if wp.assessed.mean !== null}
+								<ConfidenceMeter value={wp.assessed.mean} />
+								<span class="conf-tag" title="Mean confidence across the claims analyzed so far">
+									{wp.assessed.analyzed}/{wp.assessed.total} claims assessed
+								</span>
+							{:else}
+								<ConfidenceMeter value={wp.confidence} />
+								<span
+									class="conf-tag est"
+									title="The generating agent's self-reported confidence — not yet verified per claim"
+								>self-reported · run to assess</span>
+							{/if}
+						</span>
 						<Icon name="chevron-right" size={18} color="var(--text-tertiary)" />
 					</div>
 				</a>
@@ -569,6 +582,23 @@
 		display: flex;
 		align-items: center;
 		gap: 14px;
+	}
+	.conf {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 4px;
+	}
+	.conf-tag {
+		font-size: 10px;
+		font-family: var(--font-mono);
+		color: var(--text-tertiary);
+		white-space: nowrap;
+	}
+	.conf-tag.est {
+		font-style: italic;
+		color: var(--text-tertiary);
+		opacity: 0.85;
 	}
 
 	@media (max-width: 720px) {

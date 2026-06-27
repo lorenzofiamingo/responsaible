@@ -5,14 +5,16 @@
 	import type { AtomicClaim, Citation, RiskSignal } from '$lib/types';
 
 	let {
-		confidence,
+		assessed,
 		claims,
 		citations,
 		risks,
 		workspaceHref,
 		infoById
 	}: {
-		confidence: number;
+		// Per-claim supervision roll-up: mean confidence across the claims actually
+		// analyzed (null until the first one is run), not the seeded document prior.
+		assessed: { total: number; analyzed: number; mean: number | null };
 		claims: AtomicClaim[];
 		citations: Citation[];
 		risks: RiskSignal[];
@@ -50,7 +52,14 @@
 <section class="overview tone-{verdict.tone}">
 	<div class="lead">
 		<span class="rec"><Icon name={verdict.icon} size={15} /> {verdict.label}</span>
-		<ConfidenceMeter value={confidence} />
+		{#if assessed.mean !== null}
+			<span class="conf">
+				<ConfidenceMeter value={assessed.mean} />
+				<span class="conf-src">{assessed.analyzed}/{assessed.total} claims assessed</span>
+			</span>
+		{:else}
+			<span class="conf-none"><Icon name="circle-alert" size={12} /> Confidence assessed per claim — none run yet</span>
+		{/if}
 	</div>
 
 	<div class="stats">
@@ -128,6 +137,24 @@
 		font-weight: var(--weight-semibold);
 		font-size: var(--text-md);
 		color: var(--tone, var(--text-primary));
+	}
+	.conf {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.conf-src {
+		font-size: 10px;
+		font-family: var(--font-mono);
+		color: var(--text-tertiary);
+		white-space: nowrap;
+	}
+	.conf-none {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: var(--text-xs);
+		color: var(--text-secondary);
 	}
 	.stats {
 		display: flex;

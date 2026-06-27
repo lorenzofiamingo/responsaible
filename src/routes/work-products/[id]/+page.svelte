@@ -80,7 +80,7 @@
 
 <div class="band">
 	<SummaryOverview
-		confidence={wp.confidence}
+		assessed={data.assessed}
 		claims={data.claims}
 		citations={data.citations}
 		risks={data.risks}
