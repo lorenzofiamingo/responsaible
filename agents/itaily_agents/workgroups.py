@@ -67,16 +67,10 @@ PRESETS: dict[str, dict[str, Any]] = {
         "figures": [
             {
                 "role": "research",
-                "model": "gemini-2.5-pro",
+                "model": "claude-sonnet",
                 "effort": "high",
-                "desc": "Exhaustively searches CELLAR for every authority the claim relies on.",
+                "desc": "Drives CELLAR / EUR-Lex over MCP to verify every authority the claim relies on.",
                 "tools": ["cellar"],
-            },
-            {
-                "role": "drafter",
-                "model": "claude-opus-4-8",
-                "effort": "high",
-                "desc": "Re-states the claim and pins each [n] to an article locator.",
             },
             {
                 "role": "critic",
@@ -91,9 +85,9 @@ PRESETS: dict[str, dict[str, Any]] = {
         "figures": [
             {
                 "role": "research",
-                "model": "gemini-2.5-pro",
+                "model": "claude-sonnet",
                 "effort": "high",
-                "desc": "Searches & verifies every EU authority the claim relies on in CELLAR.",
+                "desc": "Drives CELLAR / EUR-Lex over MCP to verify every authority the claim relies on.",
                 "tools": ["cellar"],
             },
             {
@@ -112,6 +106,42 @@ PRESETS: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    # Flagship manual preset: all three canonical researchers in parallel, then an Opus
+    # critic. Manual-only — never returned by auto_preset, so it stays outside the
+    # atomic_claim.assigned_preset DB enum (no migration).
+    "full_research_panel": {
+        "label": "Full research panel",
+        "figures": [
+            {
+                "role": "research",
+                "model": "claude-sonnet",
+                "effort": "high",
+                "desc": "EU Law researcher — drives CELLAR / EUR-Lex over MCP to verify every cited authority.",
+                "tools": ["cellar"],
+            },
+            {
+                "role": "research",
+                "model": "claude-sonnet",
+                "effort": "med",
+                "desc": "Web researcher — targeted open-web corroboration via Perplexity on trusted domains.",
+                "tools": ["web"],
+                "web": {"allow": list(DEFAULT_WEB_ALLOW), "deny": []},
+            },
+            {
+                "role": "research",
+                "model": "nemotron",
+                "effort": "med",
+                "desc": "Firm knowledge researcher — consults the firm's private corpus on a self-hostable open model.",
+                "tools": ["knowledge"],
+            },
+            {
+                "role": "critic",
+                "model": "claude-opus-4-8",
+                "effort": "high",
+                "desc": "Weighs all three researchers, re-checks every CELEX, and delivers the verdict + risk.",
+            },
+        ],
+    },
 }
 
 # The palette of ready-made figures the supervisor can drop into a work group —
@@ -119,13 +149,15 @@ PRESETS: dict[str, dict[str, Any]] = {
 # the generic drafter / critic. Mirrors FIGURE_PRESETS in src/lib/workgroups.ts.
 FIGURE_PRESETS: dict[str, dict[str, Any]] = {
     "cellar_researcher": {
-        "label": "CELLAR researcher",
+        "label": "EU Law researcher",
         "icon": "gavel",
         "figure": {
             "role": "research",
-            "model": "gemini-2.5-pro",
+            # Claude Sonnet 4.6 drives the CELLAR/EUR-Lex tools over MCP: best tool-use
+            # discipline and the lowest rate of inventing a CELEX that doesn't resolve.
+            "model": "claude-sonnet",
             "effort": "high",
-            "desc": "Searches & verifies every EU authority the claim relies on in CELLAR.",
+            "desc": "Drives CELLAR / EUR-Lex over MCP to verify every authority the claim cites — never invents one.",
             "tools": ["cellar"],
         },
     },
@@ -136,19 +168,19 @@ FIGURE_PRESETS: dict[str, dict[str, Any]] = {
             "role": "research",
             "model": "claude-sonnet",
             "effort": "med",
-            "desc": "Runs targeted open-web research via Perplexity on trusted domains.",
+            "desc": "Targeted open-web research via Perplexity, scoped to trusted EU domains.",
             "tools": ["web"],
             "web": {"allow": list(DEFAULT_WEB_ALLOW), "deny": []},
         },
     },
     "knowledge_researcher": {
-        "label": "Knowledge researcher",
+        "label": "Firm knowledge researcher",
         "icon": "lock",
         "figure": {
             "role": "research",
             "model": "nemotron",
             "effort": "med",
-            "desc": "Consults the firm's private knowledge base on a self-hostable open model.",
+            "desc": "Consults the firm's private knowledge base on a self-hostable open model (stays on-perimeter).",
             "tools": ["knowledge"],
         },
     },

@@ -40,6 +40,13 @@ declare global {
 				NVIDIA_NIM_BASE_URL?: string;
 				/** Override the Nemotron model id served by NIM. */
 				ITAILY_NEMOTRON_MODEL?: string;
+				/**
+				 * CELLAR MCP endpoint the EU Law Researcher drives as a real MCP client.
+				 * Absent ⇒ same-origin /api/mcp/cellar (derived from the request).
+				 */
+				CELLAR_MCP_URL?: string;
+				/** Enable the bounded critic escalation loop (truthy ⇒ on). Absent ⇒ off. */
+				ITAILY_ESCALATION?: string;
 			};
 		}
 	}

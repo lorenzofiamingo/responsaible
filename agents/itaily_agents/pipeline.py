@@ -86,7 +86,13 @@ _DOMAIN_PREAMBLE = (
 
 
 def build_research_agent() -> LlmAgent:
-    """Agent 1: find and verify the governing EU authorities (uses CELLAR tools)."""
+    """Agent 1: find and verify the governing EU authorities (uses CELLAR tools).
+
+    This is the offline twin of the runtime "EU Law Researcher" figure: the SvelteKit
+    console drives the same CELLAR surface (search / fetch / celex) over MCP at runtime
+    via src/routes/api/mcp/cellar + src/lib/server/mcp/cellarClient.ts. Set
+    ITAILY_CELLAR_MCP=1 to make this offline agent consume CELLAR over MCP too.
+    """
     return LlmAgent(
         name="research",
         model=get_model(),

@@ -113,6 +113,9 @@ export const POST: RequestHandler = async ({ request, params, platform, locals }
 	const db = dbFrom(platform);
 	const env = platform?.env;
 	const kv = platform?.env?.KV;
+	// Where the EU Law Researcher reaches CELLAR over MCP: an explicit endpoint, else
+	// this app's own /api/mcp/cellar route (the runtime twin of mcp_cellar_server.py).
+	const mcpCellarUrl = env?.CELLAR_MCP_URL || new URL(request.url).origin + '/api/mcp/cellar';
 
 	const body = (await request.json().catch(() => ({}))) as AnalyzeRequest;
 
@@ -155,7 +158,8 @@ export const POST: RequestHandler = async ({ request, params, platform, locals }
 					env,
 					kv,
 					db,
-					supervisorInput
+					supervisorInput,
+					mcpCellarUrl
 				});
 				source = 'live';
 				verdict = live.verdict;

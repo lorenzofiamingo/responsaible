@@ -19,7 +19,12 @@ export type ModelId =
 	| 'claude-opus-4-8'
 	| 'nemotron';
 
-export type PresetId = 'quick_scan' | 'standard_review' | 'authority_deep_dive' | 'web_augmented_audit';
+export type PresetId =
+	| 'quick_scan'
+	| 'standard_review'
+	| 'authority_deep_dive'
+	| 'web_augmented_audit'
+	| 'full_research_panel';
 
 /**
  * A research figure carries one or more TOOLS — the actual capability it uses to
@@ -146,13 +151,15 @@ export type FigurePresetId =
 
 export const FIGURE_PRESETS: Record<FigurePresetId, { label: string; icon: string; make: () => Figure }> = {
 	cellar_researcher: {
-		label: 'CELLAR researcher',
+		label: 'EU Law researcher',
 		icon: RESEARCH_TOOL.cellar.icon,
 		make: () => ({
 			role: 'research',
-			model: 'gemini-2.5-pro',
+			// Claude Sonnet 4.6 drives the CELLAR/EUR-Lex tools over MCP: best tool-use
+			// discipline and the lowest rate of inventing a CELEX that doesn't resolve.
+			model: 'claude-sonnet',
 			effort: 'high',
-			desc: 'Searches & verifies every EU authority the claim relies on in CELLAR.',
+			desc: 'Drives CELLAR / EUR-Lex over MCP to verify every authority the claim cites — never invents one.',
 			tools: ['cellar']
 		})
 	},
@@ -163,19 +170,19 @@ export const FIGURE_PRESETS: Record<FigurePresetId, { label: string; icon: strin
 			role: 'research',
 			model: 'claude-sonnet',
 			effort: 'med',
-			desc: 'Runs targeted open-web research via Perplexity on trusted domains.',
+			desc: 'Targeted open-web research via Perplexity, scoped to trusted EU domains.',
 			tools: ['web'],
 			web: { allow: [...DEFAULT_WEB_ALLOW], deny: [] }
 		})
 	},
 	knowledge_researcher: {
-		label: 'Knowledge researcher',
+		label: 'Firm knowledge researcher',
 		icon: RESEARCH_TOOL.knowledge.icon,
 		make: () => ({
 			role: 'research',
 			model: 'nemotron',
 			effort: 'med',
-			desc: "Consults the firm's private knowledge base on a self-hostable open model.",
+			desc: "Consults the firm's private knowledge base on a self-hostable open model (stays on-perimeter).",
 			tools: ['knowledge']
 		})
 	},
@@ -246,16 +253,10 @@ export const PRESETS: Record<PresetId, WorkGroup> = {
 		figures: [
 			{
 				role: 'research',
-				model: 'gemini-2.5-pro',
+				model: 'claude-sonnet',
 				effort: 'high',
-				desc: 'Exhaustively searches CELLAR for every authority the claim relies on.',
+				desc: 'Drives CELLAR / EUR-Lex over MCP to verify every authority the claim relies on.',
 				tools: ['cellar']
-			},
-			{
-				role: 'drafter',
-				model: 'claude-opus-4-8',
-				effort: 'high',
-				desc: "Re-states the claim and pins each [n] to an article locator."
 			},
 			{
 				role: 'critic',
@@ -271,9 +272,9 @@ export const PRESETS: Record<PresetId, WorkGroup> = {
 		figures: [
 			{
 				role: 'research',
-				model: 'gemini-2.5-pro',
+				model: 'claude-sonnet',
 				effort: 'high',
-				desc: 'Searches & verifies every EU authority the claim relies on in CELLAR.',
+				desc: 'Drives CELLAR / EUR-Lex over MCP to verify every authority the claim relies on.',
 				tools: ['cellar']
 			},
 			{
@@ -291,6 +292,43 @@ export const PRESETS: Record<PresetId, WorkGroup> = {
 				desc: 'Adversarially re-checks every CELEX resolves and stress-tests jurisdiction/deadline.'
 			}
 		]
+	},
+	// The flagship manual preset: all three canonical researchers run in parallel, then
+	// an Opus critic weighs every finding. Manual-only — never returned by autoPreset,
+	// so it stays outside the atomic_claim.assigned_preset DB enum (no migration).
+	full_research_panel: {
+		id: 'full_research_panel',
+		label: 'Full research panel',
+		figures: [
+			{
+				role: 'research',
+				model: 'claude-sonnet',
+				effort: 'high',
+				desc: 'EU Law researcher — drives CELLAR / EUR-Lex over MCP to verify every cited authority.',
+				tools: ['cellar']
+			},
+			{
+				role: 'research',
+				model: 'claude-sonnet',
+				effort: 'med',
+				desc: 'Web researcher — targeted open-web corroboration via Perplexity on trusted domains.',
+				tools: ['web'],
+				web: { allow: [...DEFAULT_WEB_ALLOW], deny: [] }
+			},
+			{
+				role: 'research',
+				model: 'nemotron',
+				effort: 'med',
+				desc: "Firm knowledge researcher — consults the firm's private corpus on a self-hostable open model.",
+				tools: ['knowledge']
+			},
+			{
+				role: 'critic',
+				model: 'claude-opus-4-8',
+				effort: 'high',
+				desc: 'Weighs all three researchers, re-checks every CELEX, and delivers the verdict + risk.'
+			}
+		]
 	}
 };
 
@@ -302,7 +340,8 @@ export const PRESET_META: Record<PresetId, { tone: 'neutral' | 'info' | 'accent'
 		quick_scan: { tone: 'neutral', hint: 'Headings, boilerplate, low-risk text' },
 		standard_review: { tone: 'info', hint: 'Ordinary claims and definitions' },
 		authority_deep_dive: { tone: 'accent', hint: 'Citation-bearing or high-risk claims' },
-		web_augmented_audit: { tone: 'accent', hint: 'High-stakes claims needing open-web corroboration' }
+		web_augmented_audit: { tone: 'accent', hint: 'High-stakes claims needing open-web corroboration' },
+		full_research_panel: { tone: 'accent', hint: 'EU Law + Web + Firm-knowledge researchers, then an Opus critic' }
 	};
 
 /** True when the claim text carries a [n] citation marker. */

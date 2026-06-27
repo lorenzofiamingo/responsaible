@@ -3,7 +3,6 @@
 	import {
 		DEFAULT_WEB_ALLOW,
 		EFFORTS,
-		FIGURE_PRESET_IDS,
 		FIGURE_PRESETS,
 		FIGURE_ROLE,
 		FIGURE_ROLE_IDS,
@@ -34,6 +33,12 @@
 
 	// Draft text for the domain inputs, keyed by "figureIndex:allow|deny".
 	let domainDraft = $state<Record<string, string>>({});
+
+	// Palette, grouped so the three canonical researchers read as first-class.
+	const PALETTE_GROUPS: { label: string; ids: FigurePresetId[] }[] = [
+		{ label: 'Researchers', ids: ['cellar_researcher', 'web_researcher', 'knowledge_researcher'] },
+		{ label: 'Reviewers', ids: ['drafter', 'critic'] }
+	];
 
 	function pickPreset(id: PresetId) {
 		onChange(PRESETS[id]);
@@ -243,15 +248,17 @@
 		{/each}
 		{#if value.figures.length < MAX_FIGURES}
 			<div class="palette">
-				<span class="palette-label">Add figure</span>
-				<div class="palette-chips">
-					{#each FIGURE_PRESET_IDS as id (id)}
-						<button type="button" class="pchip" onclick={() => addFromPreset(id)}>
-							<Icon name={FIGURE_PRESETS[id].icon} size={11} />
-							{FIGURE_PRESETS[id].label}
-						</button>
-					{/each}
-				</div>
+				{#each PALETTE_GROUPS as grp (grp.label)}
+					<span class="palette-label">{grp.label}</span>
+					<div class="palette-chips">
+						{#each grp.ids as id (id)}
+							<button type="button" class="pchip" onclick={() => addFromPreset(id)}>
+								<Icon name={FIGURE_PRESETS[id].icon} size={11} />
+								{FIGURE_PRESETS[id].label}
+							</button>
+						{/each}
+					</div>
+				{/each}
 			</div>
 		{/if}
 	</div>

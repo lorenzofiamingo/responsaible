@@ -194,6 +194,8 @@ export interface FigureTrace {
 	tool?: string;
 	/** Sources the tool surfaced (authorities, web pages, or firm documents). */
 	sources?: TraceSource[];
+	/** Set on the critic step when the bounded escalation loop re-ran it. */
+	escalated?: boolean;
 }
 
 /** A source a research tool surfaced — a CELLAR authority, web page, or firm doc. */
