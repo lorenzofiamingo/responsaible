@@ -1,23 +1,30 @@
 <script lang="ts">
 	import Badge from './Badge.svelte';
 	import Icon from './Icon.svelte';
-	import { RISK_CATEGORY, SEVERITY, VERDICT } from '$lib/format';
+	import { CLAIM_STATE, claimState, RISK_CATEGORY, SEVERITY, VERDICT, type ClaimState } from '$lib/format';
 	import type { AtomicClaim } from '$lib/types';
 
 	let { claims, workspaceHref }: { claims: AtomicClaim[]; workspaceHref: string } = $props();
 
 	const sevRank: Record<string, number> = { high: 3, med: 2, low: 1 };
+	// The supervisor triages claims worst-first: needs-attention, then review, then
+	// the ones still to run, then the clear ones.
+	const ORDER: ClaimState[] = ['attention', 'caution', 'unrun', 'clear'];
 
-	// Riskiest first: worst severity, then weakest verdict, then lowest confidence.
-	const ranked = $derived(
-		[...claims]
-			.sort((a, b) => {
+	const groups = $derived.by(() => {
+		const by: Record<ClaimState, AtomicClaim[]> = { attention: [], caution: [], unrun: [], clear: [] };
+		for (const c of claims) by[claimState(c)].push(c);
+		for (const k of ORDER) {
+			by[k].sort((a, b) => {
 				const s = (sevRank[b.riskSeverity ?? ''] ?? 0) - (sevRank[a.riskSeverity ?? ''] ?? 0);
 				if (s) return s;
-				return a.confidence - b.confidence;
-			})
-			.slice(0, 6)
-	);
+				const conf = a.confidence - b.confidence;
+				if (conf) return conf;
+				return a.idx - b.idx;
+			});
+		}
+		return ORDER.filter((k) => by[k].length > 0).map((k) => ({ state: k, claims: by[k] }));
+	});
 
 	function snippet(t: string): string {
 		const s = t.trim();
@@ -25,38 +32,93 @@
 	}
 </script>
 
-{#if ranked.length === 0}
+{#if claims.length === 0}
 	<p class="empty">No atomic claims to review.</p>
 {:else}
-	<ul class="list">
-		{#each ranked as c (c.id)}
-			<li>
-				<a class="row" href={`${workspaceHref}?claim=${c.id}`}>
-					<span class="idx">{c.idx + 1}</span>
-					<span class="txt">{snippet(c.text)}</span>
-					<span class="badges">
-						{#if c.verdict}
-							<Badge tone={VERDICT[c.verdict]?.tone ?? 'neutral'}>
-								<Icon name={VERDICT[c.verdict]?.icon ?? 'circle-alert'} size={11} />
-								{VERDICT[c.verdict]?.label ?? c.verdict}
-							</Badge>
-						{/if}
-						{#if c.riskSeverity && c.riskCategory}
-							<Badge tone={SEVERITY[c.riskSeverity]?.tone ?? 'neutral'}>
-								<Icon name={RISK_CATEGORY[c.riskCategory]?.icon ?? 'shield-alert'} size={11} />
-								{SEVERITY[c.riskSeverity]?.label}
-							</Badge>
-						{/if}
-						<span class="pct">{Math.round(c.confidence * 100)}%</span>
-						<Icon name="arrow-right" size={14} class="go" />
-					</span>
-				</a>
-			</li>
+	<div class="groups">
+		{#each groups as g (g.state)}
+			<div class="group">
+				<h4 class="ghead tone-{CLAIM_STATE[g.state].tone}">
+					<Icon name={CLAIM_STATE[g.state].icon} size={12} />
+					{CLAIM_STATE[g.state].label}
+					<span class="gcount">{g.claims.length}</span>
+				</h4>
+				<ul class="list">
+					{#each g.claims as c (c.id)}
+						<li>
+							<a class="row" href={`${workspaceHref}?claim=${c.id}`}>
+								<span class="idx">{c.idx + 1}</span>
+								<span class="txt">{snippet(c.text)}</span>
+								<span class="badges">
+									{#if g.state === 'unrun'}
+										<span class="pending"><Icon name="circle-alert" size={11} /> Not yet run</span>
+									{:else}
+										{#if c.verdict}
+											<Badge tone={VERDICT[c.verdict]?.tone ?? 'neutral'}>
+												<Icon name={VERDICT[c.verdict]?.icon ?? 'circle-alert'} size={11} />
+												{VERDICT[c.verdict]?.label ?? c.verdict}
+											</Badge>
+										{/if}
+										{#if c.riskSeverity && c.riskCategory}
+											<Badge tone={SEVERITY[c.riskSeverity]?.tone ?? 'neutral'}>
+												<Icon name={RISK_CATEGORY[c.riskCategory]?.icon ?? 'shield-alert'} size={11} />
+												{SEVERITY[c.riskSeverity]?.label}
+											</Badge>
+										{/if}
+										<span class="pct">{Math.round(c.confidence * 100)}%</span>
+									{/if}
+									<Icon name="arrow-right" size={14} class="go" />
+								</span>
+							</a>
+						</li>
+					{/each}
+				</ul>
+			</div>
 		{/each}
-	</ul>
+	</div>
 {/if}
 
 <style>
+	.groups {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+	.group {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.ghead {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-semibold);
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+		color: var(--gt, var(--text-secondary));
+	}
+	.ghead.tone-danger {
+		--gt: var(--status-danger-fg);
+	}
+	.ghead.tone-warning {
+		--gt: var(--status-warning-fg);
+	}
+	.ghead.tone-success {
+		--gt: var(--status-success-fg);
+	}
+	.ghead.tone-neutral {
+		--gt: var(--text-secondary);
+	}
+	.gcount {
+		font-family: var(--font-mono);
+		font-size: 10px;
+		font-weight: var(--weight-regular);
+		color: var(--text-tertiary);
+	}
 	.list {
 		list-style: none;
 		margin: 0;
@@ -106,6 +168,13 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
+	}
+	.pending {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
 	}
 	.pct {
 		font-family: var(--font-mono);

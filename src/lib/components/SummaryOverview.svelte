@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ConfidenceMeter from './ConfidenceMeter.svelte';
 	import Icon from './Icon.svelte';
+	import { claimRollup } from '$lib/format';
 	import type { AtomicClaim, Citation, RiskSignal } from '$lib/types';
 
 	let {
@@ -17,7 +18,7 @@
 		workspaceHref: string;
 	} = $props();
 
-	const analyzed = $derived(claims.filter((c) => c.status === 'analyzed').length);
+	const roll = $derived(claimRollup(claims));
 
 	const risk = $derived({
 		high: risks.filter((r) => r.severity === 'high').length,
@@ -29,16 +30,18 @@
 		unresolved: citations.filter((c) => c.verifyStatus === 'unresolved').length,
 		unchecked: citations.filter((c) => c.verifyStatus === 'unchecked').length
 	});
-	// A flagged/unsupported claim or an unresolved citation is the strongest signal.
-	const flagged = $derived(
-		claims.filter((c) => c.verdict === 'unsupported' || c.verdict === 'flag').length
-	);
-
+	// The overall verdict rolls up the claims (the unit of supervision). Document-level
+	// risk signals and an unresolved citation (a likely fabricated authority) are kept
+	// as hard signals so a risky draft can't read as merely "in progress" before its
+	// claims have been run.
 	const verdict = $derived.by(() => {
-		if (risk.high > 0 || cites.unresolved > 0 || flagged > 0)
+		if (roll.attention > 0 || cites.unresolved > 0 || risk.high > 0)
 			return { label: 'Needs attention', tone: 'danger', icon: 'shield-alert' } as const;
-		if (risk.med > 0) return { label: 'Review recommended', tone: 'warning', icon: 'scale' } as const;
-		return { label: 'Looks sound', tone: 'success', icon: 'shield-check' } as const;
+		if (roll.caution > 0 || risk.med > 0)
+			return { label: 'Review recommended', tone: 'warning', icon: 'scale' } as const;
+		if (roll.unrun > 0)
+			return { label: 'Review in progress', tone: 'warning', icon: 'clock' } as const;
+		return { label: 'All claims clear', tone: 'success', icon: 'shield-check' } as const;
 	});
 </script>
 
@@ -50,8 +53,16 @@
 
 	<div class="stats">
 		<div class="stat">
-			<span class="num">{analyzed}<span class="den">/{claims.length}</span></span>
-			<span class="lbl"><Icon name="list-checks" size={12} /> Claims run</span>
+			<span class="num">{roll.total}</span>
+			<span class="lbl"><Icon name="list-checks" size={12} /> Claims</span>
+			{#if roll.total > 0}
+				<span class="dist">
+					{#if roll.attention > 0}<span class="seg bad">{roll.attention} need attention</span>{/if}
+					{#if roll.caution > 0}<span class="seg warn">{roll.caution} review</span>{/if}
+					{#if roll.unrun > 0}<span class="seg">{roll.unrun} to run</span>{/if}
+					{#if roll.clear > 0}<span class="seg ok">{roll.clear} clear</span>{/if}
+				</span>
+			{/if}
 		</div>
 		<div class="stat">
 			<span class="num" class:bad={risk.high > 0} class:warn={risk.high === 0 && risk.med > 0}>
@@ -160,6 +171,24 @@
 	}
 	.sub.bad {
 		color: var(--status-danger-fg);
+	}
+	.dist {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 2px 8px;
+		margin-top: 2px;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		color: var(--text-tertiary);
+	}
+	.seg.bad {
+		color: var(--status-danger-fg);
+	}
+	.seg.warn {
+		color: var(--status-warning-fg);
+	}
+	.seg.ok {
+		color: var(--status-success-fg);
 	}
 	.cta {
 		display: inline-flex;

@@ -84,6 +84,38 @@ export const VERDICT: Record<string, { label: string; tone: Tone; icon: string }
 	flag: { label: 'Flagged', tone: 'danger', icon: 'shield-alert' }
 };
 
+// The supervisor works claim-by-claim: each claim rolls up to one of four review
+// states, and the work product's overall verdict is an aggregate of these. Kept
+// here so SummaryOverview, ClaimFindings and the work area can't drift apart.
+export type ClaimState = 'attention' | 'caution' | 'unrun' | 'clear';
+
+export const CLAIM_STATE: Record<ClaimState, { label: string; tone: Tone; icon: string }> = {
+	attention: { label: 'Needs attention', tone: 'danger', icon: 'shield-alert' },
+	caution: { label: 'Review', tone: 'warning', icon: 'triangle-alert' },
+	unrun: { label: 'Not yet run', tone: 'neutral', icon: 'circle-alert' },
+	clear: { label: 'Clear', tone: 'success', icon: 'circle-check' }
+};
+
+/** Roll a single claim up to its review state (structural subset of AtomicClaim). */
+export function claimState(c: {
+	status: string;
+	verdict: string | null;
+	riskSeverity: string | null;
+}): ClaimState {
+	if (c.status !== 'analyzed') return 'unrun';
+	if (c.verdict === 'unsupported' || c.verdict === 'flag' || c.riskSeverity === 'high')
+		return 'attention';
+	if (c.verdict === 'weak' || c.riskSeverity === 'med') return 'caution';
+	return 'clear';
+}
+
+/** Count claims by review state — the supervisor's at-a-glance triage roll-up. */
+export function claimRollup(claims: Array<Parameters<typeof claimState>[0]>) {
+	const r = { total: claims.length, attention: 0, caution: 0, unrun: 0, clear: 0 };
+	for (const c of claims) r[claimState(c)]++;
+	return r;
+}
+
 export const EFFORT: Record<string, { label: string }> = {
 	low: { label: 'Low' },
 	med: { label: 'Medium' },
