@@ -617,11 +617,10 @@
 	.back :global(.flip) {
 		transform: rotate(180deg);
 	}
-	/* Single centred column: caps the work area and keeps it centred within
-	   the layout's wide (1200px) content container. */
+	/* Fills the layout's content container (--container-max) so the add flow
+	   lines up with the queue and the work-product detail pages. */
 	.page {
-		max-width: 760px;
-		margin-inline: auto;
+		width: 100%;
 	}
 	.hdr {
 		margin-bottom: var(--space-5);
