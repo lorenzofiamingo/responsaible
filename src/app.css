@@ -1,10 +1,14 @@
 /* App stylesheet.
-   1. Tailwind (used for layout utilities only — flex/grid/gap/spacing).
-   2. Itaily Design System tokens (the visual source of truth: colors, type,
-      spacing, radii, shadows, fonts). Imported AFTER Tailwind so the brand's
-      base.css (body, headings, links) wins over Tailwind's preflight reset. */
+   All @imports first (CSS requires it). We import the Itaily token files directly
+   (fonts → colors → type → spacing → base) and then Tailwind. Itaily's base.css is
+   UNLAYERED, so it still wins over Tailwind's layered preflight reset regardless of
+   order — the brand look stays the source of truth; Tailwind only adds layout utilities. */
+@import './lib/styles/itaily/tokens/fonts.css';
+@import './lib/styles/itaily/tokens/colors.css';
+@import './lib/styles/itaily/tokens/typography.css';
+@import './lib/styles/itaily/tokens/spacing.css';
+@import './lib/styles/itaily/tokens/base.css';
 @import 'tailwindcss';
-@import './lib/styles/itaily/styles.css';
 
 :root {
 	color-scheme: light;

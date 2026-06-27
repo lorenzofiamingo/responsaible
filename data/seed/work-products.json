@@ -1,0 +1,225 @@
+[
+	{
+		"id": "wp_2026_0142_memo",
+		"type": "memo",
+		"title": "International data transfers for Project Helios — transfer mechanism analysis",
+		"summary": "Assesses lawful bases for transferring EU personal data to the US-based processor, focusing on SCCs and the EU–US Data Privacy Framework.",
+		"body": "The proposed transfer of personal data to Helios Cloud Inc. (US) is a restricted transfer under Chapter V GDPR and requires an Article 46 safeguard absent an adequacy decision [1]. Where the importer self-certifies under the EU–US Data Privacy Framework, the Commission's adequacy decision permits the transfer without further safeguards [2]. We recommend executing the 2021 Standard Contractual Clauses as a fallback and completing a transfer impact assessment for any onward transfers to sub-processors outside the framework.",
+		"matterRef": "MAT-2026-0142",
+		"matterName": "Project Helios — vendor data processing",
+		"agentName": "Itaily Research Agent",
+		"status": "pending",
+		"priority": 72,
+		"confidence": 0.86,
+		"model": "gemini-2.5 (ADK)",
+		"createdAt": "2026-06-24T09:12:00Z",
+		"trace": [
+			{ "step": 1, "kind": "search", "actorAgent": "research", "summary": "Searched EU corpus for restricted-transfer rules (Chapter V GDPR).", "detail": { "query": "GDPR international transfer SCC adequacy", "hits": 6 } },
+			{ "step": 2, "kind": "retrieve", "actorAgent": "research", "summary": "Retrieved GDPR Articles 44–46 and the EU–US DPF adequacy decision.", "detail": { "celex": ["32016R0679", "32023D1795"] } },
+			{ "step": 3, "kind": "reason", "actorAgent": "drafter", "summary": "Determined transfer is restricted; framework certification is dispositive, SCCs are the fallback.", "detail": { "test": "adequacy → Art.46 safeguard → derogation" } },
+			{ "step": 4, "kind": "draft", "actorAgent": "drafter", "summary": "Drafted the memo with two grounding citations and a TIA recommendation." },
+			{ "step": 5, "kind": "critique", "actorAgent": "critic", "summary": "Flagged dependence on the importer's current DPF certification status (time-sensitive)." }
+		],
+		"citations": [
+			{ "marker": 1, "claim": "A transfer to a third country requires an Article 46 safeguard absent adequacy.", "celex": "32016R0679", "eli": "http://data.europa.eu/eli/reg/2016/679/oj", "title": "Regulation (EU) 2016/679 (GDPR)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679", "snippet": "A controller or processor may transfer personal data to a third country only if the controller or processor has provided appropriate safeguards…", "locator": "Art. 46(1)", "supportsClaim": true },
+			{ "marker": 2, "claim": "DPF self-certification permits transfer without further safeguards.", "celex": "32023D1795", "eli": "http://data.europa.eu/eli/dec_impl/2023/1795/oj", "title": "Commission Implementing Decision (EU) 2023/1795 (EU–US Data Privacy Framework)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32023D1795", "snippet": "The United States ensures an adequate level of protection for personal data transferred to organisations certified under the EU-US Data Privacy Framework.", "locator": "Art. 1", "supportsClaim": true }
+		],
+		"riskSignals": [
+			{ "category": "jurisdiction", "severity": "med", "rationale": "Adequacy route depends on the importer maintaining active DPF certification; status must be re-checked at signing.", "confidence": 0.8 }
+		]
+	},
+	{
+		"id": "wp_2026_0150_risk",
+		"type": "risk_analysis",
+		"title": "AI Act classification of the Aurora recruitment screening tool",
+		"summary": "Classifies the candidate-ranking model under the EU AI Act and maps the resulting obligations.",
+		"body": "Aurora ranks job applicants and therefore falls within Annex III point 4(a) as an AI system intended to be used for recruitment, making it high-risk [1]. As a high-risk system the provider must implement a risk-management system, data governance, logging, human oversight and a conformity assessment before placing it on the market [2]. Deployment in the EU triggers registration in the EU database prior to use.",
+		"matterRef": "MAT-2026-0150",
+		"matterName": "Aurora — AI recruitment tool",
+		"agentName": "Itaily Risk Agent",
+		"status": "pending",
+		"priority": 88,
+		"confidence": 0.74,
+		"model": "gemini-2.5 (ADK)",
+		"createdAt": "2026-06-25T14:03:00Z",
+		"trace": [
+			{ "step": 1, "kind": "search", "actorAgent": "research", "summary": "Searched the AI Act for recruitment use-cases in Annex III.", "detail": { "query": "AI Act high-risk recruitment Annex III" } },
+			{ "step": 2, "kind": "retrieve", "actorAgent": "research", "summary": "Retrieved Regulation (EU) 2024/1689 Articles 6, 9–17 and Annex III.", "detail": { "celex": ["32024R1689"] } },
+			{ "step": 3, "kind": "reason", "actorAgent": "drafter", "summary": "Matched Aurora's function to Annex III(4)(a) and enumerated provider obligations." },
+			{ "step": 4, "kind": "draft", "actorAgent": "drafter", "summary": "Drafted the classification with obligation mapping." },
+			{ "step": 5, "kind": "critique", "actorAgent": "critic", "summary": "Noted the provider/deployer distinction is unconfirmed and changes who bears obligations." }
+		],
+		"citations": [
+			{ "marker": 1, "claim": "Recruitment-ranking AI is high-risk under Annex III.", "celex": "32024R1689", "eli": "http://data.europa.eu/eli/reg/2024/1689/oj", "title": "Regulation (EU) 2024/1689 (Artificial Intelligence Act)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689", "snippet": "High-risk AI systems… (4) Employment, workers management and access to self-employment: (a) AI systems intended to be used for the recruitment or selection of natural persons.", "locator": "Annex III(4)(a)", "supportsClaim": true },
+			{ "marker": 2, "claim": "High-risk providers must run a conformity assessment and risk-management system.", "celex": "32024R1689", "eli": "http://data.europa.eu/eli/reg/2024/1689/oj", "title": "Regulation (EU) 2024/1689 (Artificial Intelligence Act)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689", "snippet": "A risk management system shall be established, implemented, documented and maintained in relation to high-risk AI systems.", "locator": "Art. 9", "supportsClaim": true }
+		],
+		"riskSignals": [
+			{ "category": "missing_authority", "severity": "med", "rationale": "The memo asserts provider obligations without confirming whether the client is provider or deployer under Art. 25.", "confidence": 0.7 },
+			{ "category": "deadline", "severity": "med", "rationale": "High-risk obligations phase in on a fixed timeline; applicable date for this system not stated.", "confidence": 0.6 }
+		]
+	},
+	{
+		"id": "wp_2026_0133_draft",
+		"type": "draft",
+		"title": "Notice-and-action clauses for the Nimbus marketplace terms",
+		"summary": "Drafts DSA-compliant notice-and-action and trader-traceability clauses for an online marketplace.",
+		"body": "As a hosting service that stores user content, Nimbus must operate a notice-and-action mechanism allowing any party to flag illegal content, with a statement of reasons for any restriction [1]. As an online marketplace it must also ensure trader traceability, obtaining and verifying identifying information before allowing a trader to use the platform [2]. The attached clauses implement both and a point of contact for authorities.",
+		"matterRef": "MAT-2026-0133",
+		"matterName": "Nimbus — marketplace terms & conditions",
+		"agentName": "Itaily Drafting Agent",
+		"status": "pending",
+		"priority": 54,
+		"confidence": 0.81,
+		"model": "gemini-2.5 (ADK)",
+		"createdAt": "2026-06-23T16:40:00Z",
+		"trace": [
+			{ "step": 1, "kind": "retrieve", "actorAgent": "research", "summary": "Retrieved DSA Articles 16 and 30.", "detail": { "celex": ["32022R2065"] } },
+			{ "step": 2, "kind": "draft", "actorAgent": "drafter", "summary": "Drafted notice-and-action and traceability clauses." },
+			{ "step": 3, "kind": "critique", "actorAgent": "critic", "summary": "Confirmed clauses track Art. 16/30 language; VLOP-specific duties excluded as out of scope." }
+		],
+		"citations": [
+			{ "marker": 1, "claim": "Hosting services must run a notice-and-action mechanism.", "celex": "32022R2065", "eli": "http://data.europa.eu/eli/reg/2022/2065/oj", "title": "Regulation (EU) 2022/2065 (Digital Services Act)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022R2065", "snippet": "Providers of hosting services shall put mechanisms in place to allow any individual or entity to notify them of the presence of specific items of information that the individual or entity considers to be illegal content.", "locator": "Art. 16(1)", "supportsClaim": true },
+			{ "marker": 2, "claim": "Marketplaces must verify trader identity (traceability).", "celex": "32022R2065", "eli": "http://data.europa.eu/eli/reg/2022/2065/oj", "title": "Regulation (EU) 2022/2065 (Digital Services Act)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022R2065", "snippet": "providers of online platforms allowing consumers to conclude distance contracts with traders shall ensure that traders can only use those platforms… where they have obtained the following information.", "locator": "Art. 30(1)", "supportsClaim": true }
+		],
+		"riskSignals": [
+			{ "category": "deadline", "severity": "med", "rationale": "Compliance dates differ for VLOPs vs. ordinary platforms; classification not stated in the draft.", "confidence": 0.55 }
+		]
+	},
+	{
+		"id": "wp_2026_0119_memo",
+		"type": "memo",
+		"title": "Industrial discharge permit and the Water Framework Directive objectives",
+		"summary": "Considers whether the Terra discharge permit risks breaching WFD environmental objectives and the Weser deterioration test.",
+		"body": "The Water Framework Directive obliges Member States to prevent deterioration of the status of bodies of surface water and to achieve good status [1]. Following the CJEU's Weser ruling, a permit must be refused where the project may cause a deterioration of the status of a body of water or jeopardises the attainment of good status, subject to the Article 4(7) derogation. Because the Directive is transposed nationally, the binding permit standard is the implementing national law, which must be confirmed for the relevant Member State [1].",
+		"matterRef": "MAT-2026-0119",
+		"matterName": "Terra — industrial discharge permit",
+		"agentName": "Itaily Research Agent",
+		"status": "pending",
+		"priority": 61,
+		"confidence": 0.68,
+		"model": "gemini-2.5 (ADK)",
+		"createdAt": "2026-06-22T11:25:00Z",
+		"trace": [
+			{ "step": 1, "kind": "retrieve", "actorAgent": "research", "summary": "Retrieved Directive 2000/60/EC Article 4 objectives.", "detail": { "celex": ["32000L0060"] } },
+			{ "step": 2, "kind": "reason", "actorAgent": "drafter", "summary": "Applied the Weser deterioration test and the Art. 4(7) derogation." },
+			{ "step": 3, "kind": "draft", "actorAgent": "drafter", "summary": "Drafted the memo, flagging national transposition as the operative standard." }
+		],
+		"citations": [
+			{ "marker": 1, "claim": "The WFD requires preventing deterioration and achieving good water status.", "celex": "32000L0060", "eli": "http://data.europa.eu/eli/dir/2000/60/oj", "title": "Directive 2000/60/EC (Water Framework Directive)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32000L0060", "snippet": "Member States shall implement the necessary measures to prevent deterioration of the status of all bodies of surface water.", "locator": "Art. 4(1)(a)(i)", "supportsClaim": true }
+		],
+		"riskSignals": [
+			{ "category": "missing_authority", "severity": "med", "rationale": "Conclusion turns on national transposition that the memo does not cite; the operative permit standard is unconfirmed.", "confidence": 0.72 },
+			{ "category": "jurisdiction", "severity": "low", "rationale": "Directive (not regulation) — applies via Member State law, which varies.", "confidence": 0.6 }
+		]
+	},
+	{
+		"id": "wp_2026_0161_memo",
+		"type": "memo",
+		"title": "NIS2 obligations for Sentinel as a managed security service provider",
+		"summary": "Maps NIS2 risk-management measures and incident-reporting deadlines applicable to Sentinel.",
+		"body": "As a managed security service provider, Sentinel is an essential or important entity under NIS2 and must take appropriate technical and organisational risk-management measures [1]. Significant incidents must be reported to the CSIRT in stages: an early warning within 24 hours and an incident notification within 72 hours [2]. Management bodies must approve the measures and may be held liable for non-compliance.",
+		"matterRef": "MAT-2026-0161",
+		"matterName": "Sentinel — managed security services",
+		"agentName": "Itaily Research Agent",
+		"status": "escalated",
+		"priority": 67,
+		"confidence": 0.79,
+		"model": "gemini-2.5 (ADK)",
+		"createdAt": "2026-06-21T08:50:00Z",
+		"trace": [
+			{ "step": 1, "kind": "retrieve", "actorAgent": "research", "summary": "Retrieved Directive (EU) 2022/2555 Articles 21 and 23.", "detail": { "celex": ["32022L2555"] } },
+			{ "step": 2, "kind": "reason", "actorAgent": "drafter", "summary": "Confirmed MSSPs are in scope and staged the reporting timeline." },
+			{ "step": 3, "kind": "draft", "actorAgent": "drafter", "summary": "Drafted obligations memo with the 24h/72h reporting cadence." }
+		],
+		"citations": [
+			{ "marker": 1, "claim": "In-scope entities must take risk-management measures.", "celex": "32022L2555", "eli": "http://data.europa.eu/eli/dir/2022/2555/oj", "title": "Directive (EU) 2022/2555 (NIS2)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2555", "snippet": "Member States shall ensure that essential and important entities take appropriate and proportionate technical, operational and organisational measures to manage the risks posed to the security of network and information systems.", "locator": "Art. 21(1)", "supportsClaim": true },
+			{ "marker": 2, "claim": "Significant incidents require a 24h early warning and 72h notification.", "celex": "32022L2555", "eli": "http://data.europa.eu/eli/dir/2022/2555/oj", "title": "Directive (EU) 2022/2555 (NIS2)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2555", "snippet": "an early warning, which… shall be submitted without undue delay and in any event within 24 hours of becoming aware of the significant incident.", "locator": "Art. 23(4)", "supportsClaim": true }
+		],
+		"riskSignals": [
+			{ "category": "deadline", "severity": "high", "rationale": "24h/72h reporting clock is unforgiving; client needs an operational runbook, not just a memo.", "confidence": 0.85 }
+		]
+	},
+	{
+		"id": "wp_2026_0157_risk",
+		"type": "risk_analysis",
+		"title": "DMA gatekeeper exposure for the Meridian platform",
+		"summary": "Estimates whether Meridian could be designated a gatekeeper under the Digital Markets Act quantitative thresholds.",
+		"body": "The DMA presumes gatekeeper status where an undertaking provides a core platform service and meets the quantitative thresholds on turnover and active users [1]. On the figures supplied, Meridian exceeds the EU turnover and end-user thresholds, creating a realistic designation risk that would trigger the Article 5–7 obligations. A rebuttal is possible but evidentially demanding.",
+		"matterRef": "MAT-2026-0157",
+		"matterName": "Meridian — platform threshold review",
+		"agentName": "Itaily Risk Agent",
+		"status": "pending",
+		"priority": 49,
+		"confidence": 0.71,
+		"model": "gemini-2.5 (ADK)",
+		"createdAt": "2026-06-20T13:10:00Z",
+		"trace": [
+			{ "step": 1, "kind": "retrieve", "actorAgent": "research", "summary": "Retrieved Regulation (EU) 2022/1925 Article 3 thresholds.", "detail": { "celex": ["32022R1925"] } },
+			{ "step": 2, "kind": "reason", "actorAgent": "drafter", "summary": "Applied turnover and active-user thresholds to the supplied figures." },
+			{ "step": 3, "kind": "draft", "actorAgent": "drafter", "summary": "Drafted the designation-risk estimate." }
+		],
+		"citations": [
+			{ "marker": 1, "claim": "Gatekeeper status is presumed on meeting the quantitative thresholds.", "celex": "32022R1925", "eli": "http://data.europa.eu/eli/reg/2022/1925/oj", "title": "Regulation (EU) 2022/1925 (Digital Markets Act)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022R1925", "snippet": "An undertaking shall be presumed to satisfy the respective requirements… where it achieves an annual Union turnover… and provides the same core platform service in at least three Member States.", "locator": "Art. 3(2)", "supportsClaim": true }
+		],
+		"riskSignals": [
+			{ "category": "conflict", "severity": "med", "rationale": "Active-user figures supplied by the client are unaudited and may not match the DMA counting methodology.", "confidence": 0.65 }
+		]
+	},
+	{
+		"id": "wp_2026_0168_risk",
+		"type": "risk_analysis",
+		"title": "Liability exposure for Vector's autonomous agent product",
+		"summary": "Assesses civil liability where Vector's autonomous AI agent causes financial loss to a third party.",
+		"body": "Where Vector's autonomous agent causes harm, the deployer may face liability under the high-risk obligations of the AI Act if the system is in scope [1]. In addition, Regulation (EU) 2025/1206 on liability for AI systems imposes strict liability on operators of autonomous agents and reverses the burden of proof for fault [2], so Vector would bear the burden of disproving causation. We therefore rate the residual liability exposure as high.",
+		"matterRef": "MAT-2026-0168",
+		"matterName": "Vector — autonomous agent liability",
+		"agentName": "Itaily Risk Agent",
+		"status": "pending",
+		"priority": 95,
+		"confidence": 0.49,
+		"model": "gemini-2.5 (ADK)",
+		"createdAt": "2026-06-25T18:22:00Z",
+		"trace": [
+			{ "step": 1, "kind": "search", "actorAgent": "research", "summary": "Searched for an EU AI civil-liability instrument.", "detail": { "query": "EU AI liability regulation strict liability operator", "hits": 2 } },
+			{ "step": 2, "kind": "reason", "actorAgent": "drafter", "summary": "Asserted a strict-liability regime and reversed burden of proof.", "detail": { "note": "instrument identity not verified against EUR-Lex" } },
+			{ "step": 3, "kind": "draft", "actorAgent": "drafter", "summary": "Drafted a high-exposure conclusion resting on the asserted regulation." },
+			{ "step": 4, "kind": "critique", "actorAgent": "critic", "summary": "Could not locate the cited 2025/1206 instrument; confidence lowered and the conclusion flagged." }
+		],
+		"citations": [
+			{ "marker": 1, "claim": "Deployers of in-scope high-risk AI face AI Act obligations.", "celex": "32024R1689", "eli": "http://data.europa.eu/eli/reg/2024/1689/oj", "title": "Regulation (EU) 2024/1689 (Artificial Intelligence Act)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689", "snippet": "Deployers of high-risk AI systems shall take appropriate technical and organisational measures to ensure they use such systems in accordance with the instructions of use.", "locator": "Art. 26(1)", "supportsClaim": true },
+			{ "marker": 2, "claim": "A binding EU regulation imposes strict liability on AI operators and reverses the burden of proof.", "celex": "32025R1206", "eli": "http://data.europa.eu/eli/reg/2025/1206/oj", "title": "Regulation (EU) 2025/1206 on liability for artificial intelligence systems", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32025R1206", "snippet": "Operators of autonomous AI systems shall be strictly liable for damage caused…", "locator": "Art. 4", "supportsClaim": true }
+		],
+		"riskSignals": [
+			{ "category": "hallucination", "severity": "high", "rationale": "The conclusion rests on 'Regulation (EU) 2025/1206', an instrument that does not appear in EUR-Lex. Likely a fabricated authority.", "confidence": 0.9 },
+			{ "category": "missing_authority", "severity": "high", "rationale": "No verifiable binding source supports a strict-liability / reversed-burden regime for AI in EU law as cited.", "confidence": 0.88 }
+		]
+	},
+	{
+		"id": "wp_2026_0098_memo",
+		"type": "memo",
+		"title": "Scope of the Helios data protection impact assessment",
+		"summary": "Sets the DPIA scope for the Helios processing and confirms when a prior consultation is required.",
+		"body": "The Helios processing involves systematic monitoring at scale and therefore requires a data protection impact assessment before processing begins [1]. The DPIA must describe the processing, assess necessity and proportionality, and set out measures to address the risks. Where residual high risk remains after mitigation, the controller must consult the supervisory authority prior to processing [1].",
+		"matterRef": "MAT-2026-0098",
+		"matterName": "Project Helios — DPIA scope",
+		"agentName": "Itaily Research Agent",
+		"status": "approved",
+		"priority": 38,
+		"confidence": 0.91,
+		"model": "gemini-2.5 (ADK)",
+		"createdAt": "2026-06-18T10:05:00Z",
+		"trace": [
+			{ "step": 1, "kind": "retrieve", "actorAgent": "research", "summary": "Retrieved GDPR Article 35 (DPIA) and Article 36 (prior consultation).", "detail": { "celex": ["32016R0679"] } },
+			{ "step": 2, "kind": "draft", "actorAgent": "drafter", "summary": "Set DPIA scope and the prior-consultation trigger." },
+			{ "step": 3, "kind": "critique", "actorAgent": "critic", "summary": "Confirmed Art. 35(3) criteria are met (systematic monitoring at scale)." }
+		],
+		"citations": [
+			{ "marker": 1, "claim": "Large-scale systematic monitoring requires a DPIA, with prior consultation if high risk remains.", "celex": "32016R0679", "eli": "http://data.europa.eu/eli/reg/2016/679/oj", "title": "Regulation (EU) 2016/679 (GDPR)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679", "snippet": "Where a type of processing… is likely to result in a high risk to the rights and freedoms of natural persons, the controller shall, prior to the processing, carry out an assessment of the impact.", "locator": "Art. 35(1)", "supportsClaim": true }
+		],
+		"riskSignals": [],
+		"auditSeed": [
+			{ "actorEmail": "g.romano@romanopartners.it", "action": "amend", "reason": "Tightened the necessity-and-proportionality framing in section 2 before sign-off.", "createdAt": "2026-06-19T09:30:00Z" },
+			{ "actorEmail": "g.romano@romanopartners.it", "action": "approve", "reason": "DPIA scope is correct and well-grounded; cleared to send to the client.", "createdAt": "2026-06-19T09:34:00Z" }
+		]
+	}
+]
