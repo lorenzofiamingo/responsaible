@@ -50,13 +50,21 @@
 	);
 
 	// --- work-group selection ---
-	let applyAll = $state(false);
+	// Each claim resolves to its splitter-assigned preset unless individually
+	// overridden. The "one work group for all" action is just a bulk override —
+	// it writes the same group onto every claim, which can then be re-tuned one
+	// by one. There is no separate global/override mode layered on top.
 	let midView = $state<'list' | 'graph'>('graph');
-	let globalGroup = $state<WorkGroup>(PRESETS[DEFAULT_PRESET]);
+	let bulkGroup = $state<WorkGroup>(PRESETS[DEFAULT_PRESET]);
 	let overrideById = $state<Record<string, WorkGroup>>({});
 
 	function groupFor(claim: AtomicClaim): WorkGroup {
-		return overrideById[claim.id] ?? (applyAll ? globalGroup : PRESETS[claim.assignedPreset as PresetId] ?? PRESETS[DEFAULT_PRESET]);
+		return overrideById[claim.id] ?? PRESETS[claim.assignedPreset as PresetId] ?? PRESETS[DEFAULT_PRESET];
+	}
+
+	function applyGroupToAll(wg: WorkGroup) {
+		bulkGroup = wg;
+		overrideById = Object.fromEntries(data.claims.map((c) => [c.id, wg]));
 	}
 
 	// --- selection ---
@@ -65,7 +73,7 @@
 		initial && claims0.some((c) => c.id === initial) ? initial : (claims0[0]?.id ?? null)
 	);
 	const selectedClaim = $derived(data.claims.find((c) => c.id === selectedId) ?? null);
-	const selectedGroup = $derived(selectedClaim ? groupFor(selectedClaim) : globalGroup);
+	const selectedGroup = $derived(selectedClaim ? groupFor(selectedClaim) : bulkGroup);
 
 	// --- reasoning graph (derived; recomputes as claims get analyzed) ---
 	const claimById = $derived(
@@ -170,20 +178,9 @@
 
 <div class="workarea">
 	<div class="wa-inner">
-		<RunControls
-			{globalGroup}
-			{applyAll}
-			{analyzed}
-			total={data.claims.length}
-			running={runningAll}
-			onModeChange={(v) => (applyAll = v)}
-			onGlobalChange={(wg) => (globalGroup = wg)}
-			onRunAll={runAll}
-		/>
-
 		<div class="cols">
 			<section class="panel col-doc">
-				<h3 class="ptitle"><Icon name="file-text" size={15} /> Document · atomic claims</h3>
+				<h3 class="ptitle"><Icon name="file-text" size={15} /> Document</h3>
 				<p class="phint">The first agent split the draft into {data.claims.length} atomic claims. Click any to inspect it.</p>
 				<ClaimText
 					body={wp.body}
@@ -204,6 +201,14 @@
 						<button type="button" role="tab" aria-selected={midView === 'graph'} class:on={midView === 'graph'} onclick={() => (midView = 'graph')}>Graph</button>
 					</div>
 				</h3>
+				<RunControls
+					{bulkGroup}
+					{analyzed}
+					total={data.claims.length}
+					running={runningAll}
+					onApplyAll={applyGroupToAll}
+					onRunAll={runAll}
+				/>
 				<div class="scroll">
 					{#if midView === 'graph'}
 					<ClaimGraph
@@ -327,8 +332,10 @@
 	.scroll {
 		overflow-y: auto;
 		min-height: 0;
-		margin: 0 calc(-1 * var(--space-2));
-		padding: 0 var(--space-2);
+		/* Symmetric negative margin + padding give the selection focus ring room on
+		   every side so the first/last card's ring isn't clipped by the scroll overflow. */
+		margin: calc(-1 * var(--space-2));
+		padding: var(--space-2);
 	}
 
 	@media (max-width: 1200px) {

@@ -7,7 +7,7 @@
 	import SummaryOverview from '$lib/components/SummaryOverview.svelte';
 	import SupervisoryActions from '$lib/components/SupervisoryActions.svelte';
 	import TraceTimeline from '$lib/components/TraceTimeline.svelte';
-	import { CAN_SUPERVISE, ROLE } from '$lib/format';
+	import { CAN_SUPERVISE, claimRollup, ROLE } from '$lib/format';
 	import { invalidateAll } from '$app/navigation';
 
 	let { data, form } = $props();
@@ -35,6 +35,11 @@
 	const unresolved = $derived(data.citations.filter((c) => c.verifyStatus === 'unresolved').length);
 	const unchecked = $derived(data.citations.filter((c) => c.verifyStatus === 'unchecked').length);
 	const canSupervise = $derived(!!data.user && CAN_SUPERVISE.has(data.user.role));
+
+	// The decision is a single sign-off, but framed by the claim-level review: how
+	// many claims it covers and how many still carry an open finding.
+	const roll = $derived(claimRollup(data.claims));
+	const openClaims = $derived(roll.attention + roll.caution);
 
 	let verifyingCites = $state(false);
 	async function verifyCitations() {
@@ -65,18 +70,15 @@
 <div class="grid">
 	<div class="col-main">
 		<section class="panel">
-			<h2 class="ptitle"><Icon name="file-text" size={16} /> AI work product</h2>
-			<div class="prose">
-				{#each segments as seg, i (i)}
-					{#if 'm' in seg}<a class="cmark" href="#src-{seg.m}" title="Jump to source {seg.m}"
-							><span class="cnum">{seg.m}</span></a
-						>{:else}{seg.t}{/if}
-				{/each}
-			</div>
-			<p class="advice">
-				<Icon name="scale" size={12} /> Informational draft produced by an AI agent — not advice until
-				a supervising lawyer signs it off.
+			<h2 class="ptitle">
+				<Icon name="list-checks" size={16} /> Claims to review
+				<span class="count">{data.claims.length}</span>
+			</h2>
+			<p class="phint">
+				The supervisor reviews this work claim by claim. Each atomic claim is grouped by its review
+				state — open one in the work area to run the agents against it.
 			</p>
+			<ClaimFindings claims={data.claims} {workspaceHref} />
 		</section>
 
 		<section class="panel">
@@ -88,15 +90,19 @@
 		</section>
 
 		<section class="panel">
-			<h2 class="ptitle">
-				<Icon name="list-checks" size={16} /> Atomic claims to review
-				<span class="count">{data.claims.length}</span>
-			</h2>
-			<p class="phint">
-				The claims the AI's analysis rests on, riskiest first. Open one in the work area to run the
-				agents against it.
+			<h2 class="ptitle"><Icon name="file-text" size={16} /> Full document</h2>
+			<p class="phint">The source text the claims were extracted from — kept here for reference.</p>
+			<div class="prose">
+				{#each segments as seg, i (i)}
+					{#if 'm' in seg}<a class="cmark" href="#src-{seg.m}" title="Jump to source {seg.m}"
+							><span class="cnum">{seg.m}</span></a
+						>{:else}{seg.t}{/if}
+				{/each}
+			</div>
+			<p class="advice">
+				<Icon name="scale" size={12} /> Informational draft produced by an AI agent — not advice until
+				a supervising lawyer signs it off.
 			</p>
-			<ClaimFindings claims={data.claims} {workspaceHref} />
 		</section>
 
 		<section class="panel">
@@ -114,6 +120,15 @@
 			<h2 class="ptitle"><Icon name="gavel" size={16} /> Your decision</h2>
 			{#if canSupervise}
 				<p class="phint">Approve, amend, reject, request rework, escalate, or override. Reasons are required for the serious ones and recorded immutably.</p>
+				{#if roll.total > 0}
+					<p class="covers" class:bad={openClaims > 0}>
+						<Icon name={openClaims > 0 ? 'shield-alert' : 'list-checks'} size={13} />
+						<span>
+							Your sign-off covers all {roll.total} claim{roll.total > 1 ? 's' : ''} —
+							{#if openClaims > 0}<strong>{openClaims} still flagged</strong>{:else if roll.unrun > 0}{roll.unrun} not yet run{:else}all clear{/if}.
+						</span>
+					</p>
+				{/if}
 				<SupervisoryActions {form} />
 			{:else}
 				<p class="norole">
@@ -212,6 +227,25 @@
 		font-size: var(--text-sm);
 		color: var(--text-secondary);
 		line-height: var(--leading-normal);
+	}
+	.covers {
+		display: flex;
+		align-items: flex-start;
+		gap: 7px;
+		margin: 0 0 var(--space-4);
+		padding: 9px 12px;
+		background: var(--surface-sunken);
+		border-left: 3px solid var(--border-strong);
+		border-radius: var(--radius-sm);
+		font-size: var(--text-sm);
+		color: var(--text-secondary);
+		line-height: var(--leading-normal);
+	}
+	.covers.bad {
+		border-left-color: var(--status-danger-fg);
+	}
+	.covers.bad strong {
+		color: var(--status-danger-fg);
 	}
 
 	.prose {

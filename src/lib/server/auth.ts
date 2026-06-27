@@ -38,8 +38,8 @@ export function getAuth(env: App.Platform['env']) {
 		},
 		user: {
 			additionalFields: {
-				// operator | supervisor | admin. input:false → clients can't self-assign.
-				role: { type: 'string', input: false, defaultValue: 'operator' }
+				// Single role: supervisor (the supervising lawyer). input:false → clients can't self-assign.
+				role: { type: 'string', input: false, defaultValue: 'supervisor' }
 			}
 		},
 		advanced: {

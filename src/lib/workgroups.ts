@@ -55,6 +55,22 @@ export const FIGURE_ROLE: Record<FigureRole, { label: string; icon: string }> = 
 	critic: { label: 'Critic', icon: 'shield-alert' }
 };
 
+/** Roles a figure can take, in display order — for the custom work-group editor. */
+export const FIGURE_ROLE_IDS = Object.keys(FIGURE_ROLE) as FigureRole[];
+
+/** Soft cap on how many figures a custom work group may hold, to keep a run bounded. */
+export const MAX_FIGURES = 5;
+
+/** A fresh figure for the custom editor — a light researcher to start from. */
+export function newFigure(): Figure {
+	return {
+		role: 'research',
+		model: 'gemini-2.5-flash',
+		effort: 'med',
+		desc: 'Custom figure added by the supervisor.'
+	};
+}
+
 export const PRESETS: Record<PresetId, WorkGroup> = {
 	quick_scan: {
 		id: 'quick_scan',
@@ -88,7 +104,7 @@ export const PRESETS: Record<PresetId, WorkGroup> = {
 	},
 	authority_deep_dive: {
 		id: 'authority_deep_dive',
-		label: 'Deep authority check',
+		label: 'Authority audit',
 		figures: [
 			{
 				role: 'research',

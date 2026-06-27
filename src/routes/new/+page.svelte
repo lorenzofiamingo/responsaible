@@ -320,6 +320,7 @@
 	const highRisks = $derived(draft?.riskSignals.filter((r) => r.severity === 'high').length ?? 0);
 </script>
 
+<div class="page">
 <a class="back" href="/"><Icon name="arrow-right" size={14} class="flip" /> Back to queue</a>
 
 {#if phase === 'intake'}
@@ -601,6 +602,7 @@
 		</div>
 	</form>
 {/if}
+</div>
 
 <style>
 	.back {
@@ -615,9 +617,14 @@
 	.back :global(.flip) {
 		transform: rotate(180deg);
 	}
+	/* Single centred column: caps the work area and keeps it centred within
+	   the layout's wide (1200px) content container. */
+	.page {
+		max-width: 760px;
+		margin-inline: auto;
+	}
 	.hdr {
 		margin-bottom: var(--space-5);
-		max-width: 760px;
 	}
 	.hdr h1 {
 		font-size: var(--text-xl);
@@ -633,7 +640,6 @@
 
 	/* --- intake --- */
 	.dropzone {
-		max-width: 760px;
 		border: 1.5px dashed var(--border-strong);
 		border-radius: var(--radius-lg);
 		background: var(--surface-card);
@@ -682,7 +688,6 @@
 		color: var(--text-tertiary);
 	}
 	.or {
-		max-width: 760px;
 		display: flex;
 		align-items: center;
 		gap: 12px;
@@ -701,11 +706,9 @@
 		background: var(--border-default);
 	}
 	.paste {
-		max-width: 760px;
 		width: 100%;
 	}
 	.intake-actions {
-		max-width: 760px;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -732,7 +735,6 @@
 		color: var(--border-strong);
 	}
 	.json-box {
-		max-width: 760px;
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
@@ -756,7 +758,6 @@
 
 	/* --- analyzing --- */
 	.analyzing {
-		max-width: 760px;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -828,7 +829,6 @@
 
 	/* --- review banner / warnings / trace --- */
 	.banner {
-		max-width: 760px;
 		display: flex;
 		align-items: center;
 		gap: 14px;
@@ -863,7 +863,6 @@
 		flex: none;
 	}
 	.warns {
-		max-width: 760px;
 		margin-bottom: var(--space-4);
 		display: flex;
 		flex-direction: column;
@@ -878,7 +877,6 @@
 		color: var(--status-warning-fg);
 	}
 	.trace {
-		max-width: 760px;
 		margin-bottom: var(--space-4);
 		border: 1.5px solid var(--border-default);
 		border-radius: var(--radius-lg);
@@ -949,7 +947,6 @@
 
 	/* --- review form --- */
 	.form {
-		max-width: 760px;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);

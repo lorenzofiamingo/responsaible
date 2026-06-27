@@ -68,7 +68,7 @@
 			{/if}
 		</div>
 	</button>
-	<button type="button" class="run" onclick={onRun} disabled={status === 'running'} title="Run this claim">
+	<button type="button" class="run" onclick={onRun} disabled={status === 'running'} title={`Run claim ${claim.idx + 1} check`}>
 		<Icon name={status === 'analyzed' ? 'rotate-ccw' : 'sparkles'} size={13} />
 	</button>
 </div>
@@ -80,6 +80,9 @@
 		border: 1.5px solid var(--border-default);
 		border-radius: var(--radius-md);
 		background: var(--surface-card);
+		/* Clip children (e.g. the run button's hover fill) to the rounded corners.
+		   The selection box-shadow is drawn outside the border box, so it stays visible. */
+		overflow: hidden;
 		transition: border-color var(--duration-fast) var(--ease-out);
 	}
 	.card:hover {

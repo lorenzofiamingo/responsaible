@@ -46,13 +46,21 @@
 
 <div class="doc">
 	{#each segments as seg, i (i)}
-		{#if seg.type === 'gap'}{seg.text}{:else}<button
-				type="button"
+		{#if seg.type === 'gap'}{seg.text}{:else}<span
 				class="atom tone-{tone(seg.claim.id)}"
 				class:sel={selectedId === seg.claim.id}
 				class:bearing={isLoadBearing(seg.claim.id)}
+				role="button"
+				tabindex="0"
+				aria-pressed={selectedId === seg.claim.id}
 				onclick={() => onSelect(seg.claim.id)}
-				title="Claim {seg.claim.idx + 1}{isLoadBearing(seg.claim.id) ? ' · load-bearing' : ''}">{seg.text}</button
+				onkeydown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						onSelect(seg.claim.id);
+					}
+				}}
+				title="Claim {seg.claim.idx + 1}{isLoadBearing(seg.claim.id) ? ' · load-bearing' : ''}">{seg.text}</span
 			>{/if}
 	{/each}
 </div>
@@ -64,55 +72,61 @@
 		color: var(--text-primary);
 		white-space: pre-wrap;
 	}
+	/* Claims read as continuous prose; status is a quiet pen-style underline,
+	   not a filled block — so the body looks like a document, not a stack. */
+	/* A clickable inline <span> (not a <button>): the browser forces buttons to
+	   inline-block, which boxes each claim onto its own line. An inline span lets
+	   claims flow and wrap as continuous prose. */
 	.atom {
 		font: inherit;
 		color: inherit;
-		border: none;
-		padding: 1px 2px;
-		margin: 0 -1px;
 		border-radius: var(--radius-xs);
 		cursor: pointer;
-		background: var(--atom-bg, transparent);
-		box-shadow: inset 0 -1.5px 0 var(--atom-line, var(--border-strong));
+		background: transparent;
+		text-decoration-line: underline;
+		text-decoration-color: var(--atom-line, transparent);
+		text-decoration-thickness: 2px;
+		text-decoration-skip-ink: none;
+		text-underline-offset: 0.22em;
 		-webkit-box-decoration-break: clone;
 		box-decoration-break: clone;
-		transition: background var(--duration-fast) var(--ease-out);
+		transition:
+			background var(--duration-fast) var(--ease-out),
+			text-decoration-color var(--duration-fast) var(--ease-out);
 	}
 	.atom:hover {
-		background: var(--atom-hover, var(--surface-sunken));
+		background: var(--surface-hover);
+	}
+	.atom:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: 1px;
+		border-radius: var(--radius-xs);
 	}
 	/* Foundational claims others rest on get a thicker underline. */
 	.atom.bearing {
-		box-shadow: inset 0 -3px 0 var(--atom-line, var(--border-strong));
+		text-decoration-thickness: 3.5px;
 	}
 	.tone-pending {
-		--atom-line: var(--border-strong);
-		--atom-hover: var(--surface-sunken);
+		/* Not analyzed yet — no underline, reads as plain document text. */
+		--atom-line: transparent;
 	}
 	.tone-running {
-		--atom-bg: var(--terracotta-50);
 		--atom-line: var(--color-accent);
 		animation: pulse 1.1s var(--ease-in-out) infinite;
 	}
 	.tone-ok {
-		--atom-bg: var(--status-success-bg);
 		--atom-line: var(--status-success-fg);
-		--atom-hover: var(--status-success-bg);
 	}
 	.tone-med {
-		--atom-bg: var(--status-warning-bg);
 		--atom-line: var(--status-warning-fg);
-		--atom-hover: var(--status-warning-bg);
 	}
 	.tone-high {
-		--atom-bg: var(--status-danger-bg);
 		--atom-line: var(--status-danger-fg);
-		--atom-hover: var(--status-danger-bg);
 	}
 	.atom.sel {
-		outline: 2px solid var(--color-accent);
-		outline-offset: 1px;
+		/* Selection is shown by the highlight alone — no underline. */
 		background: var(--terracotta-50);
+		text-decoration-line: none;
 	}
 	@keyframes pulse {
 		0%,

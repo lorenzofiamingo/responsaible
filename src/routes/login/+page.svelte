@@ -29,8 +29,8 @@
 		<span class="itaily-eyebrow">Oversight</span>
 		<h1>Sign in to the supervision console</h1>
 		<p class="sub">
-			Pick a demo identity — your <strong>role</strong> determines what you can do. Switch any time from
-			the header.
+			Sign in as the <strong>supervising lawyer</strong> — upload documents, review the AI work
+			queue and sign off decisions.
 		</p>
 
 		<div class="users">
