@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '$lib/components/Icon.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 	import type { WorkGroup } from '$lib/workgroups';
 	import WorkGroupConfigurator from './WorkGroupConfigurator.svelte';
 
@@ -20,6 +21,21 @@
 	} = $props();
 
 	let bulkOpen = $state(false);
+	// Edits stay local until the lawyer confirms, so closing the modal (Cancel /
+	// Escape / backdrop) discards them instead of mutating every claim. The initial
+	// value is a placeholder — openBulk() always reseeds it from the live bulkGroup.
+	// svelte-ignore state_referenced_locally
+	let draft = $state<WorkGroup>(bulkGroup);
+
+	function openBulk() {
+		draft = bulkGroup;
+		bulkOpen = true;
+	}
+
+	function applyBulk() {
+		onApplyAll(draft);
+		bulkOpen = false;
+	}
 </script>
 
 <div class="runctl">
@@ -33,27 +49,25 @@
 			<Icon name={analyzed === total && total > 0 ? 'circle-check' : 'list-checks'} size={12} />
 			{analyzed} / {total} analyzed
 		</span>
-		<button
-			type="button"
-			class="bulk-toggle"
-			class:on={bulkOpen}
-			onclick={() => (bulkOpen = !bulkOpen)}
-			disabled={total === 0}
-		>
-			<Icon name="git-fork" size={12} /> One work group for all
-			<Icon name={bulkOpen ? 'chevron-down' : 'chevron-right'} size={12} />
+		<button type="button" class="bulk-toggle" onclick={openBulk} disabled={total === 0}>
+			<Icon name="git-fork" size={12} /> Set one work group for all
 		</button>
 	</div>
-
-	{#if bulkOpen}
-		<div class="bulk">
-			<p class="bhint">
-				Sets every claim to this work group at once. Tune any single claim afterwards in its panel.
-			</p>
-			<WorkGroupConfigurator value={bulkGroup} onChange={onApplyAll} compact />
-		</div>
-	{/if}
 </div>
+
+<Modal open={bulkOpen} title="Set one work group for all" onClose={() => (bulkOpen = false)}>
+	<p class="bhint">
+		Applies one work group to all {total} claim{total === 1 ? '' : 's'} at once. Tune any single
+		claim afterwards in its panel.
+	</p>
+	<WorkGroupConfigurator value={draft} onChange={(wg) => (draft = wg)} />
+	{#snippet footer()}
+		<button type="button" class="btn-ghost" onclick={() => (bulkOpen = false)}>Cancel</button>
+		<button type="button" class="btn-accent" onclick={applyBulk} disabled={total === 0}>
+			<Icon name="git-fork" size={14} /> Apply to all {total} claim{total === 1 ? '' : 's'}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
 	.runctl {
@@ -125,26 +139,52 @@
 		border-color: var(--border-strong);
 		color: var(--text-primary);
 	}
-	.bulk-toggle.on {
-		border-color: var(--color-accent);
-		color: var(--text-primary);
-	}
 	.bulk-toggle:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
-	.bulk {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-3);
-		padding: var(--space-3);
-		background: var(--surface-sunken);
-		border-radius: var(--radius-md);
-	}
+
+	/* Rendered inside the Modal via snippets, but authored (and thus style-scoped)
+	   here. */
 	.bhint {
-		margin: 0;
-		font-size: var(--text-xs);
+		margin: 0 0 var(--space-4);
+		font-size: var(--text-sm);
 		color: var(--text-tertiary);
 		line-height: var(--leading-normal);
+	}
+	.btn-ghost,
+	.btn-accent {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		padding: 8px 14px;
+		font-family: var(--font-display);
+		font-weight: var(--weight-medium);
+		font-size: var(--text-sm);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		transition: all var(--duration-fast) var(--ease-out);
+	}
+	.btn-ghost {
+		color: var(--text-secondary);
+		background: var(--surface-card);
+		border: 1.5px solid var(--border-default);
+	}
+	.btn-ghost:hover {
+		border-color: var(--border-strong);
+		color: var(--text-primary);
+	}
+	.btn-accent {
+		color: var(--color-on-accent);
+		background: var(--color-accent);
+		border: 1.5px solid transparent;
+	}
+	.btn-accent:hover:not(:disabled) {
+		background: var(--color-accent-hover);
+	}
+	.btn-accent:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 </style>
