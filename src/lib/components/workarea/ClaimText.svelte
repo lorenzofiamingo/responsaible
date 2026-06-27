@@ -107,8 +107,9 @@
 		text-decoration-thickness: 3.5px;
 	}
 	.tone-pending {
-		/* Not analyzed yet — no underline, reads as plain document text. */
-		--atom-line: transparent;
+		/* Not analyzed yet — a neutral grey underline signals the claim is
+		   selectable without implying any verdict colour. */
+		--atom-line: var(--neutral-400);
 	}
 	.tone-running {
 		--atom-line: var(--color-accent);
