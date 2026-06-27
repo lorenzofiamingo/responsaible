@@ -1,7 +1,7 @@
 import { REASON_REQUIRED } from '$lib/format';
 import { computeHash } from '$lib/server/audit';
 import { dbFrom } from '$lib/server/db/client';
-import { getLastHash, getWorkProduct } from '$lib/server/db/queries';
+import { getClaims, getLastHash, getWorkProduct } from '$lib/server/db/queries';
 import { supervisoryAction, workProduct } from '$lib/server/db/schema';
 import { error, fail } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
@@ -25,7 +25,16 @@ export const load: PageServerLoad = async ({ params, platform, locals }) => {
 	const db = dbFrom(platform);
 	const data = await getWorkProduct(db, params.id);
 	if (!data) throw error(404, 'Work product not found');
-	return { ...data, user: locals.user };
+	const claims = await getClaims(db, params.id);
+	// `wp` + `user` come from the shared +layout.server.ts.
+	return {
+		actions: data.actions,
+		citations: data.citations,
+		risks: data.risks,
+		audit: data.audit,
+		claims,
+		user: locals.user
+	};
 };
 
 export const actions: Actions = {

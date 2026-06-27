@@ -1,21 +1,25 @@
 <script lang="ts">
 	import AuditTrail from '$lib/components/AuditTrail.svelte';
-	import ConfidenceMeter from '$lib/components/ConfidenceMeter.svelte';
+	import ClaimFindings from '$lib/components/ClaimFindings.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import RiskSignalPanel from '$lib/components/RiskSignalPanel.svelte';
 	import SourceCard from '$lib/components/SourceCard.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
+	import SummaryOverview from '$lib/components/SummaryOverview.svelte';
 	import SupervisoryActions from '$lib/components/SupervisoryActions.svelte';
 	import TraceTimeline from '$lib/components/TraceTimeline.svelte';
-	import { CAN_SUPERVISE, fmtDateTime, ROLE, WP_TYPE } from '$lib/format';
+	import { CAN_SUPERVISE, ROLE } from '$lib/format';
 	import { invalidateAll } from '$app/navigation';
 
 	let { data, form } = $props();
 
+	// `wp` + `user` come from the shared +layout.server.ts.
+	const wp = $derived(data.wp);
+	const workspaceHref = $derived(`/work-products/${wp.id}/workspace`);
+
 	// Split the body into text runs and [n] citation markers.
 	const segments = $derived.by(() => {
 		const out: Array<{ t: string } | { m: number }> = [];
-		const body = data.wp.body ?? '';
+		const body = wp.body ?? '';
 		const re = /\[(\d+)\]/g;
 		let last = 0;
 		let mm: RegExpExecArray | null;
@@ -39,7 +43,7 @@
 			await fetch('/api/cellar/verify', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ workProductId: data.wp.id })
+				body: JSON.stringify({ workProductId: wp.id })
 			});
 			await invalidateAll();
 		} finally {
@@ -48,23 +52,15 @@
 	}
 </script>
 
-<a class="back" href="/"><Icon name="arrow-right" size={14} class="flip" /> Back to queue</a>
-
-<header class="hdr">
-	<div class="eyebrow itaily-eyebrow">
-		<Icon name={WP_TYPE[data.wp.type].icon} size={12} />
-		{WP_TYPE[data.wp.type].label} · {data.wp.matterName} · {data.wp.matterRef}
-	</div>
-	<h1>{data.wp.title}</h1>
-	<p class="summary">{data.wp.summary}</p>
-	<div class="meta">
-		<StatusBadge status={data.wp.status} />
-		<ConfidenceMeter value={data.wp.confidence} />
-		<span class="m"><Icon name="sparkles" size={13} /> {data.wp.agentName}</span>
-		<span class="m mono">{data.wp.model}</span>
-		<span class="m mono"><Icon name="clock" size={12} /> {fmtDateTime(data.wp.createdAt)}</span>
-	</div>
-</header>
+<div class="band">
+	<SummaryOverview
+		confidence={wp.confidence}
+		claims={data.claims}
+		citations={data.citations}
+		risks={data.risks}
+		{workspaceHref}
+	/>
+</div>
 
 <div class="grid">
 	<div class="col-main">
@@ -89,6 +85,18 @@
 				<span class="count">{data.risks.length}</span>
 			</h2>
 			<RiskSignalPanel signals={data.risks} />
+		</section>
+
+		<section class="panel">
+			<h2 class="ptitle">
+				<Icon name="list-checks" size={16} /> Atomic claims to review
+				<span class="count">{data.claims.length}</span>
+			</h2>
+			<p class="phint">
+				The claims the AI's analysis rests on, riskiest first. Open one in the work area to run the
+				agents against it.
+			</p>
+			<ClaimFindings claims={data.claims} {workspaceHref} />
 		</section>
 
 		<section class="panel">
@@ -147,58 +155,8 @@
 </div>
 
 <style>
-	.back {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		font-size: var(--text-sm);
-		color: var(--text-secondary);
-		text-decoration: none;
-		margin-bottom: var(--space-4);
-	}
-	.back:hover {
-		color: var(--text-link);
-	}
-	.back :global(.flip) {
-		transform: rotate(180deg);
-	}
-
-	.hdr {
+	.band {
 		margin-bottom: var(--space-5);
-	}
-	.eyebrow {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		margin-bottom: 8px;
-	}
-	.hdr h1 {
-		font-size: var(--text-xl);
-		margin: 0 0 8px;
-		line-height: var(--leading-snug);
-	}
-	.summary {
-		margin: 0 0 14px;
-		max-width: 80ch;
-		font-size: var(--text-md);
-		color: var(--text-secondary);
-		line-height: var(--leading-normal);
-	}
-	.meta {
-		display: flex;
-		align-items: center;
-		gap: 16px;
-		flex-wrap: wrap;
-	}
-	.meta .m {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		font-size: var(--text-xs);
-		color: var(--text-tertiary);
-	}
-	.meta .mono {
-		font-family: var(--font-mono);
 	}
 
 	.grid {

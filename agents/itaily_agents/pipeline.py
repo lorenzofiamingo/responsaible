@@ -29,6 +29,8 @@ from .tools import cellar_fetch, cellar_search, celex_from_cite
 
 RESEARCH_OUTPUT_KEY = "research_findings"
 DRAFT_OUTPUT_KEY = "draft_product"
+CLAIMS_OUTPUT_KEY = "claims"
+CLAIM_ANALYSES_OUTPUT_KEY = "claim_analyses"
 CRITIC_OUTPUT_KEY = "critique"
 
 # Common domain framing prepended (conceptually) to every agent. EU law only.
@@ -123,17 +125,67 @@ def build_critic_agent() -> LlmAgent:
     )
 
 
+def build_claim_splitter_agent() -> LlmAgent:
+    """Agent 3a: split the drafted body into atomic claims (the smallest verifiable units)."""
+    return LlmAgent(
+        name="claim_splitter",
+        model=get_model(),
+        output_key=CLAIMS_OUTPUT_KEY,
+        instruction=(
+            f"{_DOMAIN_PREAMBLE}\n\n"
+            "ROLE: Claim splitter. You are given the drafter's JSON (state key "
+            f"'{DRAFT_OUTPUT_KEY}'). Split its `body` into ATOMIC CLAIMS — the smallest "
+            "independently-verifiable statements (usually one per sentence). For each "
+            "claim, keep its EXACT substring of the body and the character offsets that "
+            "delimit it, so the app can highlight it in place.\n"
+            "Classify each claim's `kind` as one of: heading, recital, obligation, "
+            "definition, citation_ref (carries a [n] marker), assertion, boilerplate.\n"
+            "Return ONLY JSON: {\"claims\": [{\"idx\": int, \"text\": str, "
+            "\"charStart\": int, \"charEnd\": int, \"kind\": str}]}. Offsets are "
+            "0-based indexes into the body; body[charStart:charEnd] MUST equal text."
+        ),
+    )
+
+
+def build_claim_analyzer_agent() -> LlmAgent:
+    """Agent 3b: rate each atomic claim — verdict, confidence, risk, supporting markers."""
+    return LlmAgent(
+        name="claim_analyzer",
+        model=get_model(),
+        tools=[cellar_fetch],
+        output_key=CLAIM_ANALYSES_OUTPUT_KEY,
+        instruction=(
+            f"{_DOMAIN_PREAMBLE}\n\n"
+            "ROLE: Per-claim reviewer. You are given the atomic claims (state key "
+            f"'{CLAIMS_OUTPUT_KEY}') and the drafter's citations (state key "
+            f"'{DRAFT_OUTPUT_KEY}'). For EACH claim, decide whether its cited authority "
+            "(the [n] markers it contains) genuinely supports it. Use `cellar_fetch` to "
+            "confirm any cited CELEX resolves — if it does NOT, the verdict is "
+            "'unsupported' and you must raise a 'hallucination' risk.\n"
+            "Return ONLY JSON: {\"analyses\": [{\"idx\": int, "
+            "\"verdict\": \"supported|weak|unsupported|flag\", \"confidence\": float, "
+            "\"summary\": str (one sentence), \"riskCategory\": \"hallucination|"
+            "jurisdiction|missing_authority|conflict|deadline\"|null, "
+            "\"riskSeverity\": \"low|med|high\"|null, \"riskRationale\": str, "
+            "\"citationMarkers\": [int]}]}. One entry per claim, same idx."
+        ),
+    )
+
+
 def build_pipeline() -> SequentialAgent:
-    """Compose the three agents into one ordered pipeline.
+    """Compose the agents into one ordered pipeline.
 
     Returns a ``SequentialAgent`` whose ``run_async`` (driven by a Runner in
-    run_seed.py) emits a single event stream covering research -> draft -> critique.
+    run_seed.py) emits a single event stream covering research -> draft ->
+    claim-split -> per-claim analysis -> critique.
     """
     return SequentialAgent(
         name="itaily_legal_pipeline",
         sub_agents=[
             build_research_agent(),
             build_drafter_agent(),
+            build_claim_splitter_agent(),
+            build_claim_analyzer_agent(),
             build_critic_agent(),
         ],
     )

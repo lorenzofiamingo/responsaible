@@ -1,7 +1,15 @@
 import { asc, desc, eq } from 'drizzle-orm';
 import { GENESIS_HASH } from '../audit';
 import type { DB } from './client';
-import { agentAction, citation, riskSignal, supervisoryAction, workProduct } from './schema';
+import {
+	agentAction,
+	atomicClaim,
+	citation,
+	riskSignal,
+	supervisoryAction,
+	workProduct
+} from './schema';
+import type { AtomicClaim } from './schema';
 
 /** Queue ordering: most urgent first (priority desc), then least confident first. */
 export async function getQueue(db: DB) {
@@ -37,6 +45,53 @@ export async function getWorkProduct(db: DB, id: string) {
 			.all()
 	]);
 	return { wp, actions, citations, risks, audit };
+}
+
+/** Just the work-product header row (for the shared [id] layout). */
+export async function getWorkProductHeader(db: DB, id: string) {
+	return db.select().from(workProduct).where(eq(workProduct.id, id)).get();
+}
+
+/** The atomic claims for a work product, in document order. */
+export async function getClaims(db: DB, workProductId: string) {
+	return db
+		.select()
+		.from(atomicClaim)
+		.where(eq(atomicClaim.workProductId, workProductId))
+		.orderBy(asc(atomicClaim.idx))
+		.all();
+}
+
+/** One claim by id (the analyze endpoint's seeded-fallback read). */
+export async function getClaim(db: DB, claimId: string) {
+	return db.select().from(atomicClaim).where(eq(atomicClaim.id, claimId)).get();
+}
+
+/** Fields written back to a claim after a (live or seeded-fallback) run. */
+export type ClaimRunUpdate = Partial<
+	Pick<
+		AtomicClaim,
+		| 'analysisSource'
+		| 'presetUsed'
+		| 'workGroupJson'
+		| 'verdict'
+		| 'analysisSummary'
+		| 'confidence'
+		| 'riskCategory'
+		| 'riskSeverity'
+		| 'riskRationale'
+		| 'citationMarkers'
+		| 'figureTrace'
+		| 'ranAt'
+	>
+>;
+
+/** Persist a claim's run result so it survives a reload. */
+export async function recordClaimRun(db: DB, claimId: string, update: ClaimRunUpdate) {
+	await db
+		.update(atomicClaim)
+		.set({ status: 'analyzed', ...update })
+		.where(eq(atomicClaim.id, claimId));
 }
 
 /** The whole audit ledger, oldest-first — the chain to verify. */
