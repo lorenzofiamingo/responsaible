@@ -67,7 +67,7 @@
 
 <div class="grid">
 	<div class="col-main">
-		<section class="panel source">
+		<section class="panel">
 			<h2 class="ptitle"><Icon name="file-text" size={16} /> AI work product</h2>
 			<div class="prose">
 				{#each segments as seg, i (i)}
@@ -101,7 +101,7 @@
 	</div>
 
 	<aside class="col-rail">
-		<section class="panel decide">
+		<section class="panel">
 			<h2 class="ptitle"><Icon name="gavel" size={16} /> Your decision</h2>
 			<p class="phint">Approve, amend, reject, request rework, escalate, or override. Reasons are required for the serious ones and recorded immutably.</p>
 			<SupervisoryActions {form} />
@@ -212,12 +212,6 @@
 		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow-sm);
 		padding: var(--space-5);
-	}
-	.panel.source {
-		border-left: 3px solid var(--color-accent);
-	}
-	.panel.decide {
-		border-left: 3px solid var(--color-accent);
 	}
 	.ptitle {
 		display: flex;

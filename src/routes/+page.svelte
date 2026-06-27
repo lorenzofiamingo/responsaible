@@ -21,7 +21,7 @@
 	<div class="stat">
 		<span class="n">{data.stats.pending}</span><span class="l">Pending review</span>
 	</div>
-	<div class="stat accent">
+	<div class="stat">
 		<span class="n">{data.stats.highRisk}</span><span class="l">With high-severity risk</span>
 	</div>
 	<div class="stat">
@@ -35,7 +35,7 @@
 <ul class="queue">
 	{#each data.queue as wp (wp.id)}
 		<li>
-			<a class="row" class:flag={wp.risk.high > 0 || wp.confidence < 0.6} href="/work-products/{wp.id}">
+			<a class="row" href="/work-products/{wp.id}">
 				<div class="pri" title="Priority score">
 					<span class="pn">{wp.priority}</span>
 					<span class="pl">priority</span>
@@ -104,9 +104,6 @@
 		flex-direction: column;
 		gap: 2px;
 	}
-	.stat.accent {
-		border-left: 3px solid var(--color-accent);
-	}
 	.stat .n {
 		font-family: var(--font-display);
 		font-size: var(--text-2xl);
@@ -148,9 +145,6 @@
 		box-shadow: var(--shadow-md);
 		transform: translateY(-2px);
 		border-color: var(--border-strong);
-	}
-	.row.flag {
-		border-left: 3px solid var(--color-accent);
 	}
 	.pri {
 		display: flex;
