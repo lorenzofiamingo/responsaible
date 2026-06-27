@@ -44,7 +44,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         ],
     },
     "authority_deep_dive": {
-        "label": "Deep authority check",
+        "label": "Authority audit",
         "figures": [
             {
                 "role": "research",
