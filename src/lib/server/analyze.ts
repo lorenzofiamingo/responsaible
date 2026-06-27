@@ -10,7 +10,7 @@
 // Throws on a missing key / fetch error / bad JSON so the caller can fall back to
 // the claim's seeded baseline (keeping the demo fully offline-capable).
 
-import type { Citation, FigureTrace, TraceSource } from '$lib/types';
+import type { Citation, FigureTrace, SupervisorInput, SupervisorSource, TraceSource } from '$lib/types';
 import type { KVNamespace } from '@cloudflare/workers-types';
 import {
 	MODELS,
@@ -63,6 +63,8 @@ export interface AnalyzeInput {
 	kv?: KVNamespace;
 	/** Needed by the knowledge tool to read the private firm corpus. */
 	db?: DB;
+	/** Manual guidance / sources the supervisor attached to this run. */
+	supervisorInput?: SupervisorInput | null;
 }
 
 export interface AnalyzeOutput {
@@ -74,6 +76,25 @@ export interface AnalyzeOutput {
 	riskRationale: string;
 	citationMarkers: number[];
 	figureTrace: FigureTrace[];
+	/** The supervisor input the run used, with each source's CELLAR status filled in. */
+	supervisorInput?: SupervisorInput | null;
+}
+
+/** Trim a supervisor input to its non-empty parts (or null). */
+function normalizeSupervisorInput(input: SupervisorInput | null | undefined): SupervisorInput | null {
+	if (!input) return null;
+	const guidance = (input.guidance ?? '').trim();
+	const sources = (input.sources ?? [])
+		.map((s) => ({
+			celex: (s.celex ?? '').trim(),
+			title: (s.title ?? '').trim(),
+			locator: (s.locator ?? '').trim(),
+			snippet: (s.snippet ?? '').trim(),
+			url: (s.url ?? '').trim()
+		}))
+		.filter((s) => s.celex || s.title || s.snippet || s.url);
+	if (!guidance && sources.length === 0) return null;
+	return { guidance: guidance || undefined, sources };
 }
 
 const VERDICTS = new Set(['supported', 'weak', 'unsupported', 'flag']);
@@ -231,8 +252,10 @@ async function callModel(
 export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutput> {
 	const { claimText, docCitations, group, env, kv, db } = input;
 	const figures = group.figures.length ? group.figures : [{ role: 'critic', model: 'claude-sonnet', effort: 'med', desc: '' } as Figure];
+	const supervisorInput = normalizeSupervisorInput(input.supervisorInput);
 
-	// 1. Grounding — resolve the CELEX(es) this claim cites against CELLAR.
+	// 1. Grounding — resolve the CELEX(es) this claim cites against CELLAR, plus any
+	//    authority the supervisor inserted by hand for this run.
 	const refMarkers = markersIn(claimText);
 	const refCitations = docCitations.filter((c) => c.marker != null && refMarkers.includes(c.marker));
 	const t0 = Date.now();
@@ -243,12 +266,28 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 			status: c.celex ? (await resolveCelex(c.celex, kv)).status : 'unchecked'
 		}))
 	);
+
+	// Resolve the supervisor's manual sources against CELLAR and stamp each with its
+	// status (echoed back so the panel can show whether the inserted authority verified).
+	const supSources: SupervisorSource[] = await Promise.all(
+		(supervisorInput?.sources ?? []).map(async (s): Promise<SupervisorSource> => ({
+			...s,
+			celexStatus: s.celex ? (await resolveCelex(s.celex, kv)).status : 'unchecked'
+		}))
+	);
 	const groundingMs = Date.now() - t0;
-	const resolvedCount = resolutions.filter((r) => r.status === 'verified').length;
-	const groundingSources: TraceSource[] = refCitations.map((c) => ({
-		title: `[${c.marker}] ${c.title}`,
-		url: c.sourceUrl ?? undefined
-	}));
+	const resolvedCount =
+		resolutions.filter((r) => r.status === 'verified').length +
+		supSources.filter((s) => s.celexStatus === 'verified').length;
+	const usedInput: SupervisorInput | null =
+		supervisorInput && (supervisorInput.guidance || supSources.length)
+			? { guidance: supervisorInput.guidance, sources: supSources }
+			: null;
+	// Grounding sources for the trace: cited authorities plus any the supervisor added.
+	const groundingSources: TraceSource[] = [
+		...refCitations.map((c) => ({ title: `[${c.marker}] ${c.title}`, url: c.sourceUrl ?? undefined })),
+		...supSources.map((s) => ({ title: s.title || s.celex || 'supervisor source', url: s.url || undefined }))
+	];
 
 	// 1b. Run the research figures' tools (open-web / extra CELLAR search / firm knowledge).
 	const researchFigures = figures.filter((f) => f.role === 'research');
@@ -298,6 +337,24 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 				.join('\n')
 		: '(this claim cites no authority)';
 
+	// The supervisor's manual context, when present, is authoritative steering: an
+	// instruction and/or specific authorities they want the analysis to weigh.
+	const supSourceLines = supSources.length
+		? supSources
+				.map((s) => {
+					const head = [s.title, s.locator].filter(Boolean).join(', ') || s.url || 'untitled source';
+					const cx = s.celex ? `CELEX ${s.celex} — CELLAR: ${s.celexStatus}` : 'no CELEX';
+					return `- ${head} (${cx})${s.snippet ? `: ${s.snippet}` : ''}`;
+				})
+				.join('\n')
+		: '';
+	const supervisorBlock = usedInput
+		? `SUPERVISOR-PROVIDED CONTEXT (a human reviewer inserted this for this run — weigh it as authoritative):\n` +
+			(usedInput.guidance ? `Instruction: ${usedInput.guidance}\n` : '') +
+			(supSourceLines ? `Sources:\n${supSourceLines}\n` : '') +
+			`\n`
+		: '';
+
 	// Fold any tool evidence into the prompt so the lead figure reasons over it.
 	const evidence: string[] = [];
 	if (web && (web.answer || web.sources.length)) {
@@ -322,7 +379,8 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 	const user =
 		`Assess this single atomic claim from an EU-law work product.\n\n` +
 		`CLAIM:\n"${claimText}"\n\n` +
-		`CITED AUTHORITIES (with their live CELLAR resolution):\n${citeLines}\n` +
+		`CITED AUTHORITIES (with their live CELLAR resolution):\n${citeLines}\n\n` +
+		supervisorBlock +
 		evidenceBlock +
 		`\nReturn ONLY a JSON object:\n` +
 		`{"verdict":"supported|weak|unsupported|flag","confidence":0.0-1.0,` +
@@ -347,7 +405,9 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 	const verdictSummary = String(parsed.summary ?? 'Rated the claim.');
 
 	// 3. Per-figure trace — each research figure shows the tool(s) it used; the lead
-	// figure carries the verdict.
+	// figure carries the verdict. Supervisor-provided authorities fold into the count.
+	const groundedTotal = refCitations.length + supSources.length;
+	const supNote = supSources.length ? ` (incl. ${supSources.length} supervisor-provided)` : '';
 	function researchStep(f: Figure, tool: ResearchTool): FigureTrace {
 		const base = { role: f.role, model: f.model, effort: f.effort, tool };
 		if (tool === 'web') {
@@ -375,11 +435,11 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 			};
 		}
 		// cellar
-		if (refCitations.length) {
+		if (groundedTotal) {
 			return {
 				...base,
 				kind: 'retrieve',
-				summary: `Grounded ${refCitations.length} citation(s) against EU CELLAR — ${resolvedCount} resolved.`,
+				summary: `Grounded ${groundedTotal} citation(s)${supNote} against EU CELLAR — ${resolvedCount} resolved.`,
 				sources: groundingSources,
 				ms: groundingMs
 			};
@@ -393,7 +453,14 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 				ms: cellarSearchMs || groundingMs
 			};
 		}
-		return { ...base, kind: 'retrieve', summary: 'No inline authority to ground for this claim.', ms: groundingMs };
+		return {
+			...base,
+			kind: 'retrieve',
+			summary: usedInput?.guidance
+				? 'No authority to ground; applied the supervisor’s instruction.'
+				: 'No inline authority to ground for this claim.',
+			ms: groundingMs
+		};
 	}
 
 	const figureTrace: FigureTrace[] = [];
@@ -425,6 +492,7 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 		riskSeverity,
 		riskRationale: riskCategory && risk?.rationale ? String(risk.rationale) : '',
 		citationMarkers,
-		figureTrace
+		figureTrace,
+		supervisorInput: usedInput
 	};
 }

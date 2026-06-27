@@ -8,7 +8,16 @@
 	import type { ClaimGraphInfo } from '$lib/claim-graph';
 	import { ANALYSIS_SOURCE, CLAIM_KIND, CLAIM_RELATION, TRACE_KIND, VERDICT } from '$lib/format';
 	import { FIGURE_ROLE, MODELS, RESEARCH_TOOL, type ResearchTool, type WorkGroup } from '$lib/workgroups';
-	import type { AtomicClaim, Citation, ClaimEdge, ClaimRunResult } from '$lib/types';
+	import type {
+		AtomicClaim,
+		Citation,
+		ClaimEdge,
+		ClaimReviewState,
+		ClaimRunResult,
+		SupervisorInput
+	} from '$lib/types';
+	import ClaimReview from './ClaimReview.svelte';
+	import SupervisorInputEditor from './SupervisorInput.svelte';
 	import WorkGroupConfigurator from './WorkGroupConfigurator.svelte';
 
 	let {
@@ -20,9 +29,15 @@
 		info,
 		claimById,
 		resultById,
+		canSupervise = false,
+		review,
+		input,
 		onSelectClaim,
 		onGroupChange,
-		onRun
+		onRun,
+		onReview,
+		onClearReview,
+		onInputChange
 	}: {
 		claim: AtomicClaim | null;
 		status: string;
@@ -32,10 +47,19 @@
 		info?: ClaimGraphInfo | null;
 		claimById?: Record<string, AtomicClaim>;
 		resultById?: Record<string, ClaimRunResult>;
+		canSupervise?: boolean;
+		review: ClaimReviewState;
+		input: SupervisorInput;
 		onSelectClaim?: (id: string) => void;
 		onGroupChange: (wg: WorkGroup) => void;
 		onRun: () => void;
+		onReview: (verdict: string, note: string) => Promise<void> | void;
+		onClearReview: () => Promise<void> | void;
+		onInputChange: (v: SupervisorInput) => void;
 	} = $props();
+
+	const aiVerdict = $derived(result?.verdict ?? null);
+	const overridden = $derived(!!review?.verdict);
 
 	const kind = $derived(claim ? (CLAIM_KIND[claim.kind] ?? CLAIM_KIND.assertion) : null);
 	const markers = $derived(result?.citationMarkers ?? claim?.citationMarkers ?? []);
@@ -76,10 +100,34 @@
 
 		<blockquote class="text">{claim.text}</blockquote>
 
+		{#if canSupervise}
+			{#key claim.id}
+				<ClaimReview
+					idx={claim.idx}
+					{aiVerdict}
+					{review}
+					onSave={onReview}
+					onClear={onClearReview}
+				/>
+			{/key}
+		{:else if review?.verdict}
+			<div class="ro-override">
+				<span class="ro-label"><Icon name="gavel" size={12} /> Supervisor verdict</span>
+				<Badge tone={VERDICT[review.verdict]?.tone ?? 'neutral'} variant="solid">
+					<Icon name={VERDICT[review.verdict]?.icon ?? 'circle-check'} size={11} />
+					{VERDICT[review.verdict]?.label}
+				</Badge>
+				{#if review.note}<p class="ro-note">{review.note}</p>{/if}
+			</div>
+		{/if}
+
 		{#if status === 'running'}
 			<div class="running"><Icon name="sparkles" size={15} /> Analyzing this claim with {group.label}…</div>
 		{:else if status === 'analyzed' && result}
 			<div class="result">
+				{#if overridden}
+					<div class="ai-label"><Icon name="sparkles" size={11} /> AI assessment — overridden by your judgment above</div>
+				{/if}
 				<div class="verdict-row">
 					{#if result.verdict}
 						<Badge tone={VERDICT[result.verdict]?.tone ?? 'neutral'} variant="solid">
@@ -124,6 +172,13 @@
 				{/if}
 
 				{#if result.analysisSummary}<p class="summary">{result.analysisSummary}</p>{/if}
+
+				{#if result.supervisorInput && (result.supervisorInput.guidance || result.supervisorInput.sources?.length)}
+					<div class="sup-used">
+						<Icon name="gavel" size={12} />
+						<span>Ran with your input{#if result.supervisorInput.sources?.length} · {result.supervisorInput.sources.length} source{result.supervisorInput.sources.length > 1 ? 's' : ''}{/if}</span>
+					</div>
+				{/if}
 
 				{#if result.riskSeverity && result.riskCategory}
 					<div class="risk">
@@ -225,6 +280,13 @@
 			</div>
 		{/if}
 
+		{#if canSupervise}
+			<div class="block sup-input">
+				<h4><Icon name="book-open" size={13} /> Your input &amp; sources for this run</h4>
+				<SupervisorInputEditor value={input} onChange={onInputChange} />
+			</div>
+		{/if}
+
 		<div class="block configurator">
 			<h4><Icon name="git-fork" size={13} /> Work group for this claim</h4>
 			<WorkGroupConfigurator value={group} onChange={onGroupChange} compact />
@@ -303,6 +365,51 @@
 		font-size: var(--text-sm);
 		color: var(--color-accent-active);
 		animation: pulse 1.1s var(--ease-in-out) infinite;
+	}
+	.ro-override {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+		padding: 10px 12px;
+		border: 1.5px solid var(--color-accent);
+		background: var(--terracotta-50);
+		border-radius: var(--radius-md);
+	}
+	.ro-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--text-tertiary);
+	}
+	.ro-note {
+		flex-basis: 100%;
+		margin: 0;
+		font-size: var(--text-xs);
+		color: var(--text-secondary);
+	}
+	.ai-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--text-tertiary);
+	}
+	.sup-used {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		align-self: flex-start;
+		padding: 4px 9px;
+		font-size: 11px;
+		color: var(--color-accent-active);
+		background: var(--terracotta-50);
+		border-radius: var(--radius-sm);
 	}
 	.result {
 		display: flex;

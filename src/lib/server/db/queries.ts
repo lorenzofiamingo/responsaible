@@ -143,6 +143,7 @@ export type ClaimRunUpdate = Partial<
 		| 'citationMarkers'
 		| 'figureTrace'
 		| 'ranAt'
+		| 'supervisorInput'
 	>
 >;
 
@@ -151,6 +152,35 @@ export async function recordClaimRun(db: DB, claimId: string, update: ClaimRunUp
 	await db
 		.update(atomicClaim)
 		.set({ status: 'analyzed', ...update })
+		.where(eq(atomicClaim.id, claimId));
+}
+
+/** The supervisor's manual verdict override on a claim (null verdict ⇒ cleared). */
+export interface ClaimReviewUpdate {
+	verdict: 'supported' | 'weak' | 'unsupported' | 'flag' | null;
+	note: string;
+	reviewedBy: string;
+	reviewedAt: string;
+}
+
+/**
+ * Persist a manual verdict override on a claim. Clearing (verdict === null) wipes
+ * the note/by/at too. This is a mutable domain write; the caller ALSO appends the
+ * override to the insert-only audit chain so the supervisory judgment is defensible.
+ */
+export async function recordClaimReview(db: DB, claimId: string, update: ClaimReviewUpdate) {
+	await db
+		.update(atomicClaim)
+		.set(
+			update.verdict === null
+				? { reviewVerdict: null, reviewNote: '', reviewedBy: null, reviewedAt: null }
+				: {
+						reviewVerdict: update.verdict,
+						reviewNote: update.note,
+						reviewedBy: update.reviewedBy,
+						reviewedAt: update.reviewedAt
+					}
+		)
 		.where(eq(atomicClaim.id, claimId));
 }
 

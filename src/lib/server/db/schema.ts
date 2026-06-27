@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { FigureTrace } from '$lib/types';
+import type { FigureTrace, SupervisorInput } from '$lib/types';
 
 // Better Auth tables (user/session/account/verification) — co-located so one
 // migration + one Drizzle client cover both auth and the domain model.
@@ -171,6 +171,19 @@ export const atomicClaim = sqliteTable(
 		/** Per-figure trace of what each ADK figure did for this claim. */
 		figureTrace: text('figure_trace', { mode: 'json' }).$type<FigureTrace[] | null>(),
 		ranAt: text('ran_at'),
+		// --- supervisor overrides (manual, layered on top of the AI analysis) ---
+		// The supervisor can override the AI's verdict by hand and re-run the work
+		// group with their own guidance/sources. These are mutable domain columns;
+		// each override is ALSO appended to the insert-only audit chain for defensibility.
+		/** The supervisor's manual verdict, overriding the AI's. null ⇒ no override. */
+		reviewVerdict: text('review_verdict', { enum: ['supported', 'weak', 'unsupported', 'flag'] }),
+		/** Optional written reason for the manual verdict. */
+		reviewNote: text('review_note').notNull().default(''),
+		/** Who set the manual verdict (actor email), and when (ISO). */
+		reviewedBy: text('reviewed_by'),
+		reviewedAt: text('reviewed_at'),
+		/** Manual guidance / sources the supervisor last ran the work group with. */
+		supervisorInput: text('supervisor_input', { mode: 'json' }).$type<SupervisorInput | null>(),
 		createdAt: text('created_at')
 			.notNull()
 			.default(sql`(CURRENT_TIMESTAMP)`)
