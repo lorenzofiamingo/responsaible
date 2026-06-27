@@ -67,6 +67,9 @@
 		border: 1.5px solid var(--border-default);
 		border-radius: var(--radius-md);
 		background: var(--surface-card);
+		/* Clip children (e.g. the run button's hover fill) to the rounded corners.
+		   The selection box-shadow is drawn outside the border box, so it stays visible. */
+		overflow: hidden;
 		transition: border-color var(--duration-fast) var(--ease-out);
 	}
 	.card:hover {

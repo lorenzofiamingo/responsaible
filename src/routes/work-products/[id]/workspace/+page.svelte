@@ -298,8 +298,10 @@
 	.scroll {
 		overflow-y: auto;
 		min-height: 0;
-		margin: 0 calc(-1 * var(--space-2));
-		padding: 0 var(--space-2);
+		/* Symmetric negative margin + padding give the selection focus ring room on
+		   every side so the first/last card's ring isn't clipped by the scroll overflow. */
+		margin: calc(-1 * var(--space-2));
+		padding: var(--space-2);
 	}
 
 	@media (max-width: 1200px) {
