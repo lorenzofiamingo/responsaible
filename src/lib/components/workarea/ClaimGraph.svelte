@@ -197,10 +197,10 @@
 		fill: none;
 	}
 	.e-order {
-		stroke: var(--color-accent);
+		stroke: var(--text-primary);
 	}
 	.e-qual {
-		stroke: var(--status-warning-fg);
+		stroke: var(--text-primary);
 		stroke-dasharray: 4 3;
 	}
 	.e-conf {
@@ -322,10 +322,10 @@
 		display: inline-block;
 	}
 	.sw.order {
-		border-top-color: var(--color-accent);
+		border-top-color: var(--text-primary);
 	}
 	.sw.qual {
-		border-top: 2px dashed var(--status-warning-fg);
+		border-top: 2px dashed var(--text-primary);
 	}
 	.sw.conf {
 		border-top: 2px dashed var(--status-danger-fg);
