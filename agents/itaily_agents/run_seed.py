@@ -53,6 +53,7 @@ AGENT_NAME_BY_TYPE = {
     "memo": "Itaily Research Agent",
     "risk_analysis": "Itaily Risk Agent",
     "draft": "Itaily Drafting Agent",
+    "opinion": "Itaily Advisory Agent",
 }
 
 
@@ -115,13 +116,36 @@ SEED_MATTERS: list[SeedMatter] = [
             "CELEX."
         ),
     ),
+    SeedMatter(
+        id="wp_seed_gatekeeper_opinion",
+        matter_ref="MAT-2026-0204",
+        matter_name="Meridian — DMA gatekeeper designation",
+        expected_type="opinion",
+        priority=66,
+        prompt=(
+            "Write a formal legal OPINION on whether a large online platform meets "
+            "the gatekeeper designation thresholds under the Digital Markets Act and "
+            "what the core-platform-service obligations would entail. Identify the "
+            "controlling EU instrument by CELEX and give a reasoned conclusion."
+        ),
+    ),
 ]
 
 
 # --- ADK event -> console trace mapping -------------------------------------------
 
-# Map an ADK sub-agent author name to the console's actorAgent enum.
-_ACTOR_BY_AUTHOR = {"research": "research", "drafter": "drafter", "critic": "critic"}
+# Map an ADK sub-agent author name to the console's actorAgent label. The three
+# claim agents get their own labels so the trace attributes claim-splitting,
+# graphing and per-claim analysis to the agent that actually did it (instead of
+# silently collapsing them onto "research").
+_ACTOR_BY_AUTHOR = {
+    "research": "research",
+    "drafter": "drafter",
+    "critic": "critic",
+    "claim_splitter": "splitter",
+    "claim_grapher": "grapher",
+    "claim_analyzer": "analyzer",
+}
 
 # Map a CELLAR tool name to a trace ``kind``.
 _KIND_BY_TOOL = {
@@ -204,9 +228,17 @@ class TraceBuilder:
         text = _event_text(event)
         if text and not calls and not responses:
             actor = self._actor(author)
-            kind = {"research": "reason", "drafter": "draft", "critic": "critique"}.get(
-                actor, "reason"
-            )
+            # Keyed by actor label; stays within the agent_action.kind enum
+            # (search/retrieve/reason/draft/cite/critique). Claim splitting and
+            # graphing read as "reason"; per-claim analysis reads as "critique".
+            kind = {
+                "research": "reason",
+                "drafter": "draft",
+                "critic": "critique",
+                "splitter": "reason",
+                "grapher": "reason",
+                "analyzer": "critique",
+            }.get(actor, "reason")
             self.add(
                 kind=kind,
                 author=author,
@@ -287,32 +319,66 @@ def build_claims(
 
     Each claim is stamped with its auto-assigned work-group preset (so the offline
     default matches the in-browser one) and the citation markers it carries.
+
+    Character offsets are RECOMPUTED here by locating each claim's exact text in
+    the body, not trusted from the splitter: LLMs cannot reliably count character
+    positions (Gemini got nearly all of them wrong), but the claim text itself is
+    an exact substring, so the span is derived deterministically. A running cursor
+    keeps repeated phrases in document order.
     """
     by_idx = {a.get("idx"): a for a in (analyses_raw or [])}
     claims: list[dict[str, Any]] = []
-    for c in claims_raw or []:
+    cursor = 0
+    for c in sorted(claims_raw or [], key=lambda x: x.get("idx") or 0):
         text = c.get("text", "")
         kind = c.get("kind", "assertion")
         markers = [int(m) for m in _MARKER_RE.findall(text)]
-        a = by_idx.get(c.get("idx"), {})
+        # Locate the exact text; fall back to a global search, then to the
+        # splitter's own offsets if the text isn't a verbatim substring.
+        pos = body.find(text, cursor) if text else -1
+        if pos == -1 and text:
+            pos = body.find(text)
+        if pos == -1:
+            char_start, char_end = c.get("charStart", 0), c.get("charEnd", 0)
+        else:
+            char_start, char_end = pos, pos + len(text)
+            cursor = char_end
+        a = by_idx.get(c.get("idx"))
+        if a is None:
+            # The per-claim analyzer produced no entry for this claim — don't
+            # fabricate a confident "supported". Flag it for the supervisor so a
+            # missing analysis is visibly distinct from a real positive verdict.
+            analysis = {
+                "verdict": "flag",
+                "confidence": 0.4,
+                "summary": "No per-claim analysis was produced for this claim.",
+                "riskCategory": "missing_authority",
+                "riskSeverity": "low",
+                "riskRationale": "The per-claim reviewer returned no verdict for this claim.",
+                "figureTrace": None,
+            }
+            citation_markers = markers
+        else:
+            analysis = {
+                "verdict": a.get("verdict", "supported"),
+                "confidence": _clamp(a.get("confidence"), default=0.7),
+                "summary": a.get("summary", ""),
+                "riskCategory": a.get("riskCategory"),
+                "riskSeverity": a.get("riskSeverity"),
+                "riskRationale": a.get("riskRationale", ""),
+                "figureTrace": None,
+            }
+            citation_markers = a.get("citationMarkers") or markers
         claims.append(
             {
                 "idx": c.get("idx"),
                 "text": text,
-                "charStart": c.get("charStart", 0),
-                "charEnd": c.get("charEnd", 0),
+                "charStart": char_start,
+                "charEnd": char_end,
                 "kind": kind,
                 "assignedPreset": auto_preset(text, kind),
-                "citationMarkers": a.get("citationMarkers") or markers,
-                "analysis": {
-                    "verdict": a.get("verdict", "supported"),
-                    "confidence": _clamp(a.get("confidence"), default=0.7),
-                    "summary": a.get("summary", ""),
-                    "riskCategory": a.get("riskCategory"),
-                    "riskSeverity": a.get("riskSeverity"),
-                    "riskRationale": a.get("riskRationale", ""),
-                    "figureTrace": None,
-                },
+                "citationMarkers": citation_markers,
+                "analysis": analysis,
             }
         )
     return claims
@@ -365,19 +431,49 @@ def assemble_work_product(
     wp_type = draft.get("type") or matter.expected_type
     confidence = _clamp(critique.get("confidence"), default=0.7)
 
+    # The critic re-fetched every cited CELEX (citationChecks); fold that result
+    # back onto each citation so the console shows verified/unresolved instead of
+    # leaving everything 'unchecked'. Indexed by marker, then by CELEX.
+    checks_by_marker: dict[int, bool] = {}
+    checks_by_celex: dict[str, bool] = {}
+    for chk in critique.get("citationChecks", []) or []:
+        resolves = bool(chk.get("resolves"))
+        marker = chk.get("marker")
+        if marker is not None:
+            try:
+                checks_by_marker[int(marker)] = resolves
+            except (TypeError, ValueError):
+                pass
+        if chk.get("celex"):
+            checks_by_celex[str(chk["celex"]).strip().upper()] = resolves
+
     citations = []
     for i, c in enumerate(draft.get("citations", []) or [], start=1):
+        marker = c.get("marker", i)
+        celex = c.get("celex")
+        resolves = checks_by_marker.get(marker)
+        if resolves is None and celex:
+            resolves = checks_by_celex.get(str(celex).strip().upper())
+        if not celex or resolves is None:
+            verify_status, verified, verified_at = "unchecked", False, None
+        elif resolves:
+            verify_status, verified, verified_at = "verified", True, created_at
+        else:
+            verify_status, verified, verified_at = "unresolved", False, None
         citations.append(
             {
-                "marker": c.get("marker", i),
+                "marker": marker,
                 "claim": c.get("claim", ""),
-                "celex": c.get("celex"),
+                "celex": celex,
                 "eli": c.get("eli"),
                 "title": c.get("title", ""),
                 "sourceUrl": c.get("sourceUrl") or c.get("source_url"),
                 "snippet": c.get("snippet", ""),
                 "locator": c.get("locator", ""),
                 "supportsClaim": bool(c.get("supportsClaim", True)),
+                "verified": verified,
+                "verifyStatus": verify_status,
+                "verifiedAt": verified_at,
             }
         )
 
@@ -470,6 +566,13 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
     )
     state = getattr(session, "state", {}) or {}
     draft = _parse_json_blob(state.get(DRAFT_OUTPUT_KEY, ""))
+    # If the drafter's reply did not parse into a body, fail this matter loudly
+    # rather than writing a blank, confident-looking product the loader accepts.
+    if not draft.get("body", "").strip():
+        raise ValueError(
+            "drafter produced no parseable body; refusing to emit a blank work "
+            f"product (state head: {str(state.get(DRAFT_OUTPUT_KEY, ''))[:120]!r})"
+        )
     critique = _parse_json_blob(state.get(CRITIC_OUTPUT_KEY, ""))
     claims_raw = _parse_json_blob(state.get(CLAIMS_OUTPUT_KEY, "")).get("claims", [])
     analyses_raw = _parse_json_blob(state.get(CLAIM_ANALYSES_OUTPUT_KEY, "")).get("analyses", [])
@@ -487,71 +590,110 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
 
 
 def dry_run_product(matter: SeedMatter) -> dict[str, Any]:
-    """Produce a deterministic offline fixture matching the output contract.
+    """Produce a deterministic offline fixture — through the REAL assembly path.
 
-    Lets you exercise the whole write/seed path without API keys or network, and
-    documents exactly what a real run emits.
+    Builds the same intermediate shapes a live run pulls out of session state
+    (draft / critique / claims / analyses / edges), then runs them through the
+    exact ``build_claims`` / ``build_edges`` / ``assemble_work_product`` the live
+    pipeline uses. So ``--dry-run`` is a genuine end-to-end contract test of the
+    output — verified citations, atomic claims with exact offsets, reasoning
+    edges, six-actor trace — without API keys, ADK, or the network.
     """
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    body = "This is a placeholder body produced by --dry-run [1]."
-    claims = [
+
+    body = (
+        "Under the cited EU instrument, the controlling rule applies to this "
+        "matter [1]. A compliant transfer mechanism must therefore be in place "
+        "before any processing begins [2]."
+    )
+    _gdpr = {
+        "celex": "32016R0679",
+        "eli": "http://data.europa.eu/eli/reg/2016/679/oj",
+        "title": "Regulation (EU) 2016/679 (GDPR)",
+        "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679",
+        "snippet": "…",
+    }
+    draft = {
+        "type": matter.expected_type,
+        "title": f"[DRY RUN] {matter.matter_name}",
+        "summary": "Offline fixture — exercises the real assembly/loader contract.",
+        "body": body,
+        "citations": [
+            {"marker": 1, "claim": "The controlling rule applies.", "locator": "Art. 1",
+             "supportsClaim": True, **_gdpr},
+            {"marker": 2, "claim": "A transfer mechanism must be in place.", "locator": "Art. 46",
+             "supportsClaim": True, **_gdpr},
+        ],
+    }
+    critique = {
+        "confidence": 0.7,
+        "riskSignals": [
+            {"category": "missing_authority", "severity": "low",
+             "rationale": "Illustrative risk signal for the dry-run fixture.",
+             "confidence": 0.6}
+        ],
+        # Both citations "re-verified" as resolving -> assembly marks them verified.
+        "citationChecks": [
+            {"marker": 1, "celex": "32016R0679", "resolves": True},
+            {"marker": 2, "celex": "32016R0679", "resolves": True},
+        ],
+    }
+
+    # Atomic claims with exact offsets into `body` (body[start:end] == text).
+    claims_raw: list[dict[str, Any]] = []
+    for idx, m in enumerate(re.finditer(r"[^.]*\.", body)):
+        text = m.group(0).strip()
+        if not text:
+            continue
+        start = body.index(text)
+        markers = [int(x) for x in _MARKER_RE.findall(text)]
+        claims_raw.append(
+            {
+                "idx": idx,
+                "text": text,
+                "charStart": start,
+                "charEnd": start + len(text),
+                "kind": "citation_ref" if markers else "assertion",
+            }
+        )
+    analyses_raw = [
         {
-            "idx": 0,
-            "text": body,
-            "charStart": 0,
-            "charEnd": len(body),
-            "kind": "citation_ref",
-            "assignedPreset": auto_preset(body, "citation_ref"),
-            "citationMarkers": [1],
-            "analysis": {
-                "verdict": "supported",
-                "confidence": 0.7,
-                "summary": "Placeholder claim grounded in the dry-run citation.",
-                "riskCategory": None,
-                "riskSeverity": None,
-                "riskRationale": "",
-                "figureTrace": None,
-            },
+            "idx": c["idx"], "verdict": "supported", "confidence": 0.7,
+            "summary": "Grounded in the cited EU authority.",
+            "riskCategory": None, "riskSeverity": None, "riskRationale": "",
+            "citationMarkers": [int(x) for x in _MARKER_RE.findall(c["text"])],
         }
+        for c in claims_raw
     ]
+    # Claim 1 (the obligation) rests on claim 0 (the controlling rule).
+    edges_raw = (
+        [{"from": 1, "to": 0, "relation": "premise",
+          "rationale": "The obligation depends on the controlling rule."}]
+        if len(claims_raw) >= 2 else []
+    )
+
     trace = [
         {"step": 1, "kind": "search", "actorAgent": "research",
          "summary": "Called cellar_search(query='…').",
          "detail": {"tool": "cellar_search", "args": {"query": matter.matter_name}}},
         {"step": 2, "kind": "cite", "actorAgent": "research",
-         "summary": "Verified the governing CELEX: resolves.",
-         "detail": {"tool": "cellar_fetch", "result": {"resolves": True}}},
+         "summary": "Verified 32016R0679: resolves.",
+         "detail": {"tool": "cellar_fetch", "result": {"celex": "32016R0679", "resolves": True}}},
         {"step": 3, "kind": "draft", "actorAgent": "drafter",
          "summary": "Drafted the work product with grounded citations."},
-        {"step": 4, "kind": "critique", "actorAgent": "critic",
+        {"step": 4, "kind": "reason", "actorAgent": "splitter",
+         "summary": "Split the body into atomic claims."},
+        {"step": 5, "kind": "reason", "actorAgent": "grapher",
+         "summary": "Mapped premise edges between the claims."},
+        {"step": 6, "kind": "critique", "actorAgent": "analyzer",
+         "summary": "Rated each claim against its cited authority."},
+        {"step": 7, "kind": "critique", "actorAgent": "critic",
          "summary": "Re-verified citations and set confidence."},
     ]
-    return {
-        "id": matter.id,
-        "type": matter.expected_type,
-        "title": f"[DRY RUN] {matter.matter_name}",
-        "summary": "Offline fixture — replace by running the real ADK pipeline.",
-        "body": body,
-        "matterRef": matter.matter_ref,
-        "matterName": matter.matter_name,
-        "agentName": AGENT_NAME_BY_TYPE.get(matter.expected_type, "Itaily Research Agent"),
-        "status": "pending",
-        "priority": matter.priority,
-        "confidence": 0.7,
-        "model": get_model_label(),
-        "createdAt": created_at,
-        "trace": trace,
-        "citations": [
-            {"marker": 1, "claim": "Placeholder grounded claim.", "celex": "32016R0679",
-             "eli": "http://data.europa.eu/eli/reg/2016/679/oj",
-             "title": "Regulation (EU) 2016/679 (GDPR)",
-             "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679",
-             "snippet": "…", "locator": "Art. 1", "supportsClaim": True}
-        ],
-        "riskSignals": [],
-        "claims": claims,
-        "edges": [],
-    }
+
+    claims = build_claims(claims_raw, analyses_raw, body)
+    edges = build_edges(edges_raw, len(claims))
+    return assemble_work_product(matter, draft, critique, trace, created_at, claims, edges)
 
 
 # --- orchestration / IO -----------------------------------------------------------
@@ -576,7 +718,8 @@ async def _main_async(dry_run: bool) -> int:
                 wp = await run_matter(matter)
                 products.append(wp)
                 print(f"  [ok] {matter.id} ({len(wp['trace'])} trace steps, "
-                      f"{len(wp['citations'])} citations)")
+                      f"{len(wp['citations'])} citations, {len(wp['claims'])} claims, "
+                      f"{len(wp['edges'])} edges)")
         except Exception as exc:  # one matter failing must not lose the rest
             print(f"  [FAIL] {matter.id}: {exc!r}", file=sys.stderr)
 

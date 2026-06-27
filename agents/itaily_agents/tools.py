@@ -52,7 +52,18 @@ USER_AGENT = "ItailyLegalSeedBot/0.1 (+https://github.com/itaily/hackthelaw; hac
 
 # Defensive defaults. Short timeouts so a stalled request never hangs a run.
 DEFAULT_TIMEOUT_S = 20.0
+# Title CONTAINS scans over the full CELLAR title index can take 20-30s for some
+# token combinations, so the SPARQL search gets a more generous ceiling than the
+# cheap by-CELEX existence check.
+SEARCH_TIMEOUT_S = 60.0
 DEFAULT_LIMIT = 5
+
+# Dropped from the free-text query before building the per-word title filters:
+# short connective words that match almost every title and only add scan cost.
+_SEARCH_STOPWORDS = {
+    "the", "and", "for", "with", "under", "from", "into", "eu", "of", "to",
+    "in", "on", "a", "an", "by", "or", "its", "per",
+}
 
 
 # --- CELEX helpers ----------------------------------------------------------------
@@ -77,14 +88,33 @@ def celex_from_cite(citation: str, act_type: str = "regulation") -> dict[str, An
     """Build a CELEX id from a human citation. Pure, no network.
 
     Args:
-        citation: A "year/number" cite, e.g. "2016/679" or "(EU) 2024/1689".
+        citation: A "year/number" cite, e.g. "2016/679" or "Directive 2011/83".
+            If the word "regulation", "directive" or "decision" appears in the
+            text it is used to pick the type letter, so you don't have to set
+            ``act_type`` separately.
         act_type: "regulation" | "directive" | "decision" (default regulation).
+            Pass this when the citation text doesn't name the instrument kind —
+            getting it wrong yields the wrong CELEX letter and a 404 on fetch.
 
     Returns:
         ``{"ok": True, "celex": "32016R0679", "eli": "...", "source_url": "..."}``
         or ``{"ok": False, "error": "..."}`` if the citation can't be parsed.
     """
-    letter = _CELEX_TYPE_LETTER.get(act_type.strip().lower())
+    # Infer the instrument kind from the citation text when the caller left the
+    # default ("regulation") or passed something unrecognised, so "Directive
+    # 2011/83" does not silently become a Regulation CELEX (wrong letter -> 404).
+    chosen = (act_type or "").strip().lower()
+    lowered = citation.lower()
+    inferred = (
+        "directive" if "directive" in lowered
+        else "decision" if "decision" in lowered
+        else "regulation" if "regulation" in lowered
+        else None
+    )
+    if inferred and chosen in ("", "regulation") and chosen != inferred:
+        chosen = inferred
+
+    letter = _CELEX_TYPE_LETTER.get(chosen)
     if not letter:
         return {"ok": False, "error": f"unknown act_type {act_type!r}"}
 
@@ -142,26 +172,40 @@ def cellar_search(query: str, limit: int = DEFAULT_LIMIT) -> dict[str, Any]:
         or ``{"ok": False, "error": "...", "results": []}`` on any failure.
     """
     limit = max(1, min(int(limit), 25))
-    # Full-text search over English titles of legal resources. We bind the CELEX
-    # id (cdm:resource_legal_id_celex) and the title, filter to English
-    # expressions, and LIMIT to keep the result small.
-    #
-    # NOTE: CELLAR's SPARQL schema is rich and occasionally changes. This query
-    # is intentionally conservative; if CELLAR returns nothing for known topics,
-    # widen the title predicate or drop the regex case-fold. VERIFY against the
-    # live endpoint when you first run it.
+    # Search over the English titles of EU *legislation*. Three things make this
+    # actually return results (verified against the live endpoint 2026-06):
+    #   1. Walk work<-expression via `cdm:expression_belongs_to_work` (the INVERSE
+    #      direction). The forward `cdm:work_has_expression` is not populated and
+    #      returns zero rows.
+    #   2. Restrict to CELEX sector 3 (secondary legislation: Regulations,
+    #      Directives, Decisions) so parliamentary questions, case law and
+    #      opinions don't drown the controlling instruments.
+    #   3. Require the two MOST DISCRIMINATIVE query words (the longest, e.g.
+    #      "intelligence"+"artificial") as independent CONTAINS filters rather than
+    #      the whole phrase. Words in any order match, and capping at two keeps a
+    #      longer query like "artificial intelligence high-risk" from over-
+    #      constraining to zero rows (no title carries every word).
+    tokens = _search_tokens(query)
+    if tokens:
+        title_filters = "\n  ".join(
+            f'FILTER(CONTAINS(LCASE(STR(?title)), "{_sparql_escape(t)}"))' for t in tokens
+        )
+    else:  # query was all stopwords/punctuation — fall back to the raw phrase.
+        title_filters = f'FILTER(CONTAINS(LCASE(STR(?title)), "{_sparql_escape(query.lower())}"))'
+
     sparql = f"""{CDM_PREFIX}
 SELECT DISTINCT ?work ?celex ?title WHERE {{
+  ?exp cdm:expression_belongs_to_work ?work .
   ?work cdm:resource_legal_id_celex ?celex .
-  ?work cdm:work_has_expression ?exp .
   ?exp cdm:expression_uses_language {LANG_ENG} .
   ?exp cdm:expression_title ?title .
-  FILTER(CONTAINS(LCASE(STR(?title)), LCASE("{_sparql_escape(query)}")))
+  FILTER(STRSTARTS(STR(?celex), "3"))
+  {title_filters}
 }}
 LIMIT {limit}"""
 
     try:
-        with _client() as client:
+        with _client(SEARCH_TIMEOUT_S) as client:
             resp = client.post(
                 SPARQL_ENDPOINT,
                 data={"query": sparql, "format": "application/sparql-results+json"},
@@ -241,6 +285,20 @@ def cellar_fetch(celex: str, fmt: str = "identifiers") -> dict[str, Any]:
 def _sparql_escape(value: str) -> str:
     """Escape a string for safe inlining into a SPARQL string literal."""
     return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _search_tokens(query: str, keep: int = 2) -> list[str]:
+    """The ``keep`` most discriminative (longest) words from a free-text topic.
+
+    Significant = longer than two chars and not a connective stopword. Returning
+    the longest few keeps the per-word title AND from over-constraining to zero
+    rows on a multi-word query.
+    """
+    words = re.findall(r"[a-z0-9]+", (query or "").lower())
+    significant = [w for w in words if len(w) > 2 and w not in _SEARCH_STOPWORDS]
+    # Keep the longest `keep`, preserving original order among those chosen.
+    chosen = set(sorted(significant, key=len, reverse=True)[:keep])
+    return [w for w in significant if w in chosen]
 
 
 # --- web research tool (Perplexity) -----------------------------------------------

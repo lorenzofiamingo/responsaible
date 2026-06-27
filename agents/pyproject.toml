@@ -3,7 +3,9 @@ name = "itaily-agents"
 version = "0.1.0"
 description = "Offline Google ADK multi-agent pipeline that generates the SEED dataset for the Itaily legal-supervision console."
 readme = "README.md"
-requires-python = ">=3.11"
+# Upper bound: the google-adk -> google-genai -> pydantic stack does not yet
+# import under Python 3.14 (typing._eval_type signature change). Use 3.11-3.13.
+requires-python = ">=3.11,<3.14"
 license = { text = "MIT" }
 
 dependencies = [
