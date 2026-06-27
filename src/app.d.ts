@@ -39,7 +39,7 @@ declare global {
 				/** NIM endpoint — point at a self-hosted NIM to keep firm data on-perimeter. */
 				NVIDIA_NIM_BASE_URL?: string;
 				/** Override the Nemotron model id served by NIM. */
-				NEMOTRON_MODEL?: string;
+				ITAILY_NEMOTRON_MODEL?: string;
 			};
 		}
 	}

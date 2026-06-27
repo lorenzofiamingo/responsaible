@@ -238,7 +238,7 @@ async function callModel(
 	}
 	if (provider === 'nvidia') {
 		if (!env.NVIDIA_NIM_API_KEY) throw new Error('NVIDIA_NIM_API_KEY not configured');
-		const apiId = env.NEMOTRON_MODEL || apiModel;
+		const apiId = env.ITAILY_NEMOTRON_MODEL || apiModel;
 		return callNvidia(apiId, effort, system, user, env.NVIDIA_NIM_API_KEY, env.NVIDIA_NIM_BASE_URL || NIM_DEFAULT_BASE);
 	}
 	if (!env.GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY not configured');
