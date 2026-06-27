@@ -202,19 +202,40 @@ function isFoundation(c: DerivedClaim): boolean {
  * Derive the reasoning-graph edges for a live-ingested work product — the deterministic
  * runtime stand-in for the offline ADK `claim_grapher` (which produces the authored
  * `edges` the seed loads, see scripts/load-seed.mjs). Live ingestion has no LLM grapher,
- * so the structure is inferred from claim kinds + citation anchoring:
+ * so the structure is inferred from claim kinds + citation anchoring.
  *
- *   - Each non-boilerplate claim WITHOUT its own citation rests (`premise`) on the
- *     nearest claim that DOES cite an authority — "this prose stands on that authority".
- *   - Each cited-authority claim after the first builds (`elaboration`) on the previous
- *     one, giving the argument a backbone so risk propagates transitively.
+ * The graph hangs off a set of FOUNDATION claims, chosen in tiers so a real ingested
+ * document gets a dependency backbone even when it carries no inline `[n]` citation
+ * markers (most contracts, letters and memos don't — only the ADK-authored seed bodies
+ * reliably do):
  *
- * Every edge points to an earlier-or-foundation claim, so the graph is a DAG. Without
- * this a freshly ingested document would have nodes but no edges: a flat row of isolated
- * claims with no risk propagation (the undermined-by-a-premise signal in claim-graph.ts).
+ *   1. `citation`: claims that invoke a cited authority (an inline `[n]` marker), if any;
+ *   2. `framing`:  otherwise the substantive *assertions* — the document's framing and
+ *                  definitional statements — which obligations and other prose rest on;
+ *   3. `sequence`: otherwise every non-boilerplate claim, giving at least a linear
+ *                  reading-order backbone.
+ *
+ * Then, in every tier:
+ *   - Each non-boilerplate claim that is NOT itself a foundation rests (`premise`) on the
+ *     nearest foundation — "this prose stands on that anchor".
+ *   - Each foundation after the first builds (`elaboration`) on the previous foundation,
+ *     giving the argument a backbone so risk propagates transitively.
+ *
+ * Every edge points to an earlier-or-foundation claim, so the graph is a DAG. Without the
+ * tiered fallback a citation-less document would have nodes but no edges: a flat row of
+ * isolated claims with no risk propagation (the undermined-by-a-premise signal in
+ * claim-graph.ts) — and the workspace graph would render "No dependencies mapped".
  */
 export function deriveEdges(claims: DerivedClaim[]): DerivedEdge[] {
-	const foundations = claims.filter(isFoundation).map((c) => c.idx);
+	const cited = claims.filter(isFoundation).map((c) => c.idx);
+	const assertions = claims.filter((c) => c.kind === 'assertion').map((c) => c.idx);
+	const substantive = claims.filter((c) => c.kind !== 'boilerplate').map((c) => c.idx);
+	const mode: 'citation' | 'framing' | 'sequence' = cited.length
+		? 'citation'
+		: assertions.length
+			? 'framing'
+			: 'sequence';
+	const foundations = mode === 'citation' ? cited : mode === 'framing' ? assertions : substantive;
 	if (!foundations.length) return [];
 	const foundationSet = new Set(foundations);
 
@@ -243,6 +264,20 @@ export function deriveEdges(claims: DerivedClaim[]): DerivedEdge[] {
 		return prev;
 	}
 
+	// Rationale wording follows the anchoring mode — an authority for `citation`, the
+	// document's own framing otherwise — so the tooltip never claims a citation that the
+	// fallback tiers didn't actually find.
+	const elaborationRationale = (to: number) =>
+		mode === 'citation'
+			? `Develops the argument from the authority cited in claim ${to + 1}.`
+			: mode === 'framing'
+				? `Develops the framing established in claim ${to + 1}.`
+				: `Follows in the document's reasoning from claim ${to + 1}.`;
+	const premiseRationale = (to: number) =>
+		mode === 'citation'
+			? `Rests on the authority cited in claim ${to + 1}.`
+			: `Rests on the framing established in claim ${to + 1}.`;
+
 	const edges: DerivedEdge[] = [];
 	for (const c of claims) {
 		if (c.kind === 'boilerplate') continue;
@@ -253,7 +288,7 @@ export function deriveEdges(claims: DerivedClaim[]): DerivedEdge[] {
 					fromIdx: c.idx,
 					toIdx: prev,
 					relation: 'elaboration',
-					rationale: `Develops the argument from the authority cited in claim ${prev + 1}.`,
+					rationale: elaborationRationale(prev),
 					ordering: ORDERING_RELATIONS.has('elaboration')
 				});
 			}
@@ -264,7 +299,7 @@ export function deriveEdges(claims: DerivedClaim[]): DerivedEdge[] {
 					fromIdx: c.idx,
 					toIdx: f,
 					relation: 'premise',
-					rationale: `Rests on the authority cited in claim ${f + 1}.`,
+					rationale: premiseRationale(f),
 					ordering: ORDERING_RELATIONS.has('premise')
 				});
 			}
