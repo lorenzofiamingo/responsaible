@@ -3,12 +3,13 @@
  * pipeline (agents/itaily_agents). Enabled only when GEMINI_API_KEY / GOOGLE_API_KEY
  * is present in the Worker env; otherwise the rules engine runs.
  *
- * Design choice: the LLM lifts the *narrative* quality (title, summary, a tightened
- * body, sharper risk rationales), but CITATIONS are still grounded by the
- * deterministic detector over the resulting body. The model can't invent an
- * authority that isn't structurally derivable to a CELEX — the same guard the
- * critic agent enforces in the ADK pipeline. Any failure throws so the caller
- * falls back to the rules engine.
+ * Design choice: this is a SUPERVISION console, so the uploaded document is the
+ * evidence the lawyer signs off on — the LLM must NOT rewrite or summarise it. The
+ * model only lifts the *metadata* around it (title, summary, type, matter, sharper
+ * risk rationales); the BODY stays the operator's original text, and CITATIONS are
+ * grounded by the deterministic detector over that original — so the model can't
+ * invent an authority (or silently reword the document) the supervisor never saw.
+ * Any failure throws so the caller falls back to the rules engine.
  */
 
 import type { ExtractedDraft, ExtractedRisk, ExtractedTraceStep } from '$lib/types';
@@ -32,7 +33,6 @@ interface GeminiAnalysis {
 	type?: string;
 	title?: string;
 	summary?: string;
-	body?: string;
 	matterName?: string;
 	matterRef?: string;
 	riskSignals?: Array<{ category?: string; severity?: string; rationale?: string; confidence?: number }>;
@@ -41,15 +41,17 @@ interface GeminiAnalysis {
 function prompt(text: string): string {
 	return (
 		`${PREAMBLE}\n\n` +
-		'TASK: A legal operator uploaded the document below. Turn it into a supervision-queue work ' +
-		'product. Keep every legal claim grounded in EU instruments that already appear in the text — ' +
-		'mark them inline with [1], [2], … in the body. Do NOT add authorities the document does not ' +
-		'mention. Be concise and practitioner-grade.\n\n' +
+		'TASK: A legal operator uploaded the document below for supervision review. Do NOT rewrite, ' +
+		'summarise, condense or re-order the document — its original text is kept verbatim as the ' +
+		'work-product body and inline [n] citation markers are added separately by a deterministic ' +
+		'detector. Your job is ONLY to describe and triage it: classify it, title it, write a one-line ' +
+		'summary, identify the matter, and flag risks. Never invent an authority the document does not ' +
+		'mention.\n\n' +
 		'Return ONLY a JSON object with keys: ' +
 		'{"type":"draft|memo|opinion|risk_analysis (opinion = an external, reliance-bearing legal opinion ' +
 		'addressed to a client or third party; memo = internal analysis not relied upon)","title":str,' +
-		'"summary":str (one line),"body":str (with [n] ' +
-		'markers),"matterName":str,"matterRef":str,"riskSignals":[{"category":"hallucination|jurisdiction|' +
+		'"summary":str (one line),"matterName":str,"matterRef":str,' +
+		'"riskSignals":[{"category":"hallucination|jurisdiction|' +
 		'missing_authority|conflict|deadline","severity":"low|med|high","rationale":str,"confidence":0-1}]}.\n\n' +
 		'--- DOCUMENT ---\n' +
 		text.slice(0, 24_000)
@@ -111,10 +113,10 @@ export async function extractGemini(
 
 	const a = parseJson(reply);
 
-	// Ground citations + scores by running the deterministic engine over the
-	// model's body (falling back to the source text if the model omitted one).
-	const groundOn = String(a.body ?? '').trim() || rawText;
-	const base = extractHeuristic(groundOn, opts);
+	// The body is the operator's ORIGINAL document, never the model's prose: run the
+	// deterministic engine over the source text so the stored/displayed body stays
+	// faithful and every inline [n] marker lands on the real wording the lawyer signs.
+	const base = extractHeuristic(rawText, opts);
 
 	const type = TYPES.includes(String(a.type)) ? (a.type as ExtractedDraft['type']) : base.type;
 	const risks = mergeRisks(base.riskSignals, cleanRisks(a.riskSignals));
@@ -133,9 +135,9 @@ export async function extractGemini(
 		},
 		{
 			step: 2,
-			kind: 'draft',
-			actorAgent: 'drafter',
-			summary: `Drafted a ${type.replace('_', ' ')} with ${base.citations.length} inline [n] ${base.citations.length === 1 ? 'citation' : 'citations'}.`,
+			kind: 'reason',
+			actorAgent: 'intake',
+			summary: `Kept the uploaded ${type.replace('_', ' ')} verbatim as the body and anchored ${base.citations.length} inline [n] ${base.citations.length === 1 ? 'citation' : 'citations'}.`,
 			detail: null
 		},
 		{
