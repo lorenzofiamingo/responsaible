@@ -9,7 +9,7 @@ export * from './auth-schema';
 /**
  * Itaily Oversight — data model.
  *
- * A `work_product` is one AI-generated deliverable (draft / memo / risk analysis).
+ * A `work_product` is one AI-generated deliverable (draft / memo / opinion / risk analysis).
  * Each carries a transparency `agent_action` trace, `citation`s (resolvable against
  * EU CELLAR), `risk_signal`s, and an insert-only, hash-chained `supervisory_action`
  * audit log. The audit log is the defensible supervisory trail.
@@ -19,7 +19,7 @@ export const workProduct = sqliteTable(
 	'work_product',
 	{
 		id: text('id').primaryKey(),
-		type: text('type', { enum: ['draft', 'memo', 'risk_analysis'] }).notNull(),
+		type: text('type', { enum: ['draft', 'memo', 'opinion', 'risk_analysis'] }).notNull(),
 		title: text('title').notNull(),
 		summary: text('summary').notNull().default(''),
 		/** Markdown-ish body. Citation markers like [1] reference `citation.marker`. */

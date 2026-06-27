@@ -4,7 +4,7 @@ import { createWorkProduct, type NewWorkProductInput } from '$lib/server/db/quer
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-const TYPES = ['draft', 'memo', 'risk_analysis'];
+const TYPES = ['draft', 'memo', 'opinion', 'risk_analysis'];
 const KINDS = ['search', 'retrieve', 'reason', 'draft', 'cite', 'critique'];
 const CATEGORIES = ['hallucination', 'jurisdiction', 'missing_authority', 'conflict', 'deadline'];
 const SEVERITIES = ['low', 'med', 'high'];

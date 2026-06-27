@@ -254,5 +254,35 @@
 			{ "actorEmail": "g.romano@romanopartners.it", "action": "amend", "reason": "Tightened the necessity-and-proportionality framing in section 2 before sign-off.", "createdAt": "2026-06-19T09:30:00Z" },
 			{ "actorEmail": "g.romano@romanopartners.it", "action": "approve", "reason": "DPIA scope is correct and well-grounded; cleared to send to the client.", "createdAt": "2026-06-19T09:34:00Z" }
 		]
+	},
+	{
+		"id": "wp_2026_0172_opinion",
+		"type": "opinion",
+		"title": "Legal opinion — combining end-user data across Meridian's core platform services under the DMA",
+		"summary": "Formal opinion to the Meridian board: the proposed cross-service data combination is lawful only via consent meeting the GDPR standard, and is otherwise prohibited.",
+		"body": "To the Board of Directors of Meridian Platforms SE. You have asked for our opinion on whether Meridian, as a designated gatekeeper, may combine the personal data of end users collected through its marketplace and its messaging service to improve advertising targeting. For the purposes of this opinion we have assumed that Meridian is a designated gatekeeper in respect of both services and that no separate statutory basis applies. Under Article 5(2) of the Digital Markets Act, a gatekeeper may not combine personal data from one core platform service with personal data from another core platform service unless the end user has been presented with a specific choice and has given consent within the meaning of the GDPR [1]. Consent is valid only where the controller can demonstrate that the data subject has given a freely given, specific, informed and unambiguous indication of agreement [2]. In our opinion, subject to the qualifications below, the proposed combination is lawful only if Meridian first implements a consent mechanism that meets that standard; absent such consent, Article 5(2) prohibits it. This opinion is addressed to the Board solely in connection with the proposed advertising initiative and may not be relied upon by any other person, or for any other purpose, without our prior written consent.",
+		"matterRef": "MAT-2026-0172",
+		"matterName": "Meridian — gatekeeper conduct opinion",
+		"agentName": "Itaily Advisory Agent",
+		"status": "pending",
+		"priority": 90,
+		"confidence": 0.7,
+		"model": "gemini-2.5 (ADK)",
+		"createdAt": "2026-06-26T11:15:00Z",
+		"trace": [
+			{ "step": 1, "kind": "search", "actorAgent": "research", "summary": "Searched the EU corpus for gatekeeper data-combination rules (DMA Article 5).", "detail": { "query": "DMA gatekeeper combine personal data consent", "hits": 4 } },
+			{ "step": 2, "kind": "retrieve", "actorAgent": "research", "summary": "Retrieved DMA Article 5(2) and the GDPR conditions for consent (Article 7).", "detail": { "celex": ["32022R1925", "32016R0679"] } },
+			{ "step": 3, "kind": "reason", "actorAgent": "drafter", "summary": "Determined the combination is lawful only via consent meeting the GDPR standard; framed the opinion's condition, assumptions and reliance qualification." },
+			{ "step": 4, "kind": "draft", "actorAgent": "drafter", "summary": "Drafted the opinion with an addressee, stated assumptions, a conditional conclusion and a scope-of-reliance caveat." },
+			{ "step": 5, "kind": "critique", "actorAgent": "critic", "summary": "Flagged that the favourable conclusion depends on a consent mechanism that does not yet exist, and that the opinion is reliance-bearing." }
+		],
+		"citations": [
+			{ "marker": 1, "claim": "A gatekeeper may not combine personal data across core platform services without end-user consent.", "celex": "32022R1925", "eli": "http://data.europa.eu/eli/reg/2022/1925/oj", "title": "Regulation (EU) 2022/1925 (Digital Markets Act)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022R1925", "snippet": "The gatekeeper shall not… combine personal data from the relevant core platform service with personal data from any further core platform services or from any other services… unless the end user has been presented with the specific choice and has provided consent within the meaning of Regulation (EU) 2016/679.", "locator": "Art. 5(2)", "supportsClaim": true },
+			{ "marker": 2, "claim": "Consent must be demonstrable and freely given, specific, informed and unambiguous.", "celex": "32016R0679", "eli": "http://data.europa.eu/eli/reg/2016/679/oj", "title": "Regulation (EU) 2016/679 (GDPR)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679", "snippet": "Where processing is based on consent, the controller shall be able to demonstrate that the data subject has consented to processing of his or her personal data.", "locator": "Art. 7(1)", "supportsClaim": true }
+		],
+		"riskSignals": [
+			{ "category": "conflict", "severity": "med", "rationale": "The targeted-advertising objective is in tension with Art. 5(2) DMA; the opinion permits it only through a compliant consent route, which materially narrows the product design.", "confidence": 0.66 },
+			{ "category": "missing_authority", "severity": "med", "rationale": "The favourable conclusion is expressly conditional on a consent mechanism meeting the Article 7 GDPR standard — a load-bearing assumption that is stated but not yet evidenced. As a reliance-bearing opinion it must be discharged before the client acts on it.", "confidence": 0.8 }
+		]
 	}
 ]
