@@ -9,6 +9,8 @@ import { firmKnowledge } from './db/schema';
 import type { DB } from './db/client';
 
 export interface KnowledgeHit {
+	/** The firm-knowledge doc id — used to deep-link the trace into /knowledge. */
+	id: string;
 	title: string;
 	/** Internal reference (no public URL — the document is private). */
 	ref: string;
@@ -72,6 +74,7 @@ export async function searchFirmKnowledge(db: DB, query: string, k = 3): Promise
 		}
 		if (score > 0) {
 			scored.push({
+				id: r.id,
 				title: r.title,
 				ref: r.sourceRef || r.id,
 				snippet: snippetFor(r.body, qterms),

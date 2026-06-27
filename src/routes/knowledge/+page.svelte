@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import Badge from '$lib/components/Badge.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import ContextMenu from '$lib/components/ContextMenu.svelte';
@@ -77,6 +78,25 @@
 	});
 
 	const activeCount = $derived((q.trim() ? 1 : 0) + (categoryFilter !== 'all' ? 1 : 0));
+
+	// Deep-link from an agent trace: /knowledge?doc=<id> scrolls to and highlights the
+	// document the Firm-knowledge researcher consulted (the corpus is private, so the
+	// trace links here rather than to any public URL).
+	let highlightId = $state<string | null>(null);
+	$effect(() => {
+		const docId = page.url.searchParams.get('doc');
+		if (!docId || !data.docs.some((d) => d.id === docId)) {
+			highlightId = null;
+			return;
+		}
+		highlightId = docId;
+		// The target may be hidden behind a filter — clear filters so it's in the list.
+		q = '';
+		categoryFilter = 'all';
+		requestAnimationFrame(() => {
+			document.getElementById(`fk-${docId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+		});
+	});
 
 	function clearAll() {
 		q = '';
@@ -188,7 +208,7 @@
 {:else}
 	<ul class="list">
 		{#each filtered as d (d.id)}
-			<li class="kcard" class:armed={menu.doc?.id === d.id && (menu.open || confirmOpen)} oncontextmenu={(e) => openMenu(e, d)}>
+			<li id="fk-{d.id}" class="kcard" class:armed={menu.doc?.id === d.id && (menu.open || confirmOpen)} class:target={highlightId === d.id} oncontextmenu={(e) => openMenu(e, d)}>
 				<span class="kicon" style="color: var(--color-accent)"><Icon name={cat(d.category).icon} size={18} /></span>
 				<div class="kmain">
 					<div class="ktop">
@@ -502,6 +522,20 @@
 	/* Highlight the card whose context menu / confirm dialog is currently open. */
 	.kcard.armed {
 		border-color: var(--color-accent);
+	}
+	/* Deep-link target (?doc=<id>): accent border + a one-shot background flash. */
+	.kcard.target {
+		border-color: var(--color-accent);
+		animation: kflash 1.8s var(--ease-out);
+	}
+	@keyframes kflash {
+		0%,
+		35% {
+			background: var(--terracotta-50);
+		}
+		100% {
+			background: var(--surface-card);
+		}
 	}
 	.kicon {
 		flex: none;

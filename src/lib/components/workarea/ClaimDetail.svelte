@@ -210,6 +210,16 @@
 															<a href={s.url} target="_blank" rel="noopener noreferrer">
 																<Icon name="external-link" size={10} /> {s.title}
 															</a>
+														{:else if s.ref}
+															<a
+																class="priv-link"
+																href="/knowledge?doc={encodeURIComponent(s.ref)}"
+																target="_blank"
+																rel="noopener noreferrer"
+																title="Open in the firm knowledge base (private — internal only)"
+															>
+																<Icon name="lock" size={10} /> {s.title}
+															</a>
 														{:else}
 															<span class="priv"><Icon name="lock" size={10} /> {s.title}</span>
 														{/if}
@@ -568,7 +578,8 @@
 		color: var(--color-accent);
 		text-decoration: underline;
 	}
-	.tsources .priv {
+	.tsources .priv,
+	.tsources .priv-link {
 		color: var(--text-tertiary);
 		font-style: italic;
 	}

@@ -758,7 +758,9 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 			const hits = await searchFirmKnowledge(db, claimText);
 			const retrieveMs = Date.now() - ts;
 			if (!hits.length) return { finding: null, trace: [{ ...stamp, kind: 'retrieve', summary: 'No matching firm knowledge found.', ms: retrieveMs }] };
-			const sources = hits.map((k) => ({ title: k.title, ref: k.ref }));
+			// `ref` carries the doc id so the trace can deep-link into /knowledge — the
+			// document is private (no public URL), so the link is an internal app route.
+			const sources = hits.map((k) => ({ title: k.title, ref: k.id }));
 			const trace: FigureTrace[] = [
 				{ ...stamp, kind: 'retrieve', summary: `Consulted ${hits.length} private firm document(s) on a self-hostable model.`, sources, ms: retrieveMs }
 			];
