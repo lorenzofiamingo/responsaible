@@ -10,8 +10,7 @@
 		resultById,
 		graph,
 		groupLabelFor,
-		onSelect,
-		onRun
+		onSelect
 	}: {
 		claims: AtomicClaim[];
 		selectedId: string | null;
@@ -20,7 +19,6 @@
 		graph?: Map<string, ClaimGraphInfo>;
 		groupLabelFor: (claim: AtomicClaim) => string;
 		onSelect: (id: string) => void;
-		onRun: (id: string) => void;
 	} = $props();
 </script>
 
@@ -35,7 +33,6 @@
 				info={graph?.get(claim.id)}
 				groupLabel={groupLabelFor(claim)}
 				onSelect={() => onSelect(claim.id)}
-				onRun={() => onRun(claim.id)}
 			/>
 		</div>
 	{/each}

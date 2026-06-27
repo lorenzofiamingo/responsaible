@@ -54,7 +54,7 @@
 	// overridden. The "one work group for all" action is just a bulk override —
 	// it writes the same group onto every claim, which can then be re-tuned one
 	// by one. There is no separate global/override mode layered on top.
-	let midView = $state<'list' | 'graph'>('graph');
+	let midView = $state<'doc' | 'list' | 'graph'>('doc');
 	let bulkGroup = $state<WorkGroup>(PRESETS[DEFAULT_PRESET]);
 	let overrideById = $state<Record<string, WorkGroup>>({});
 
@@ -182,26 +182,11 @@
 <div class="workarea">
 	<div class="wa-inner">
 		<div class="cols">
-			<section class="panel col-doc">
-				<h3 class="ptitle"><Icon name="file-text" size={15} /> Document</h3>
-				<p class="phint">The first agent split the draft into {data.claims.length} atomic claims. Click any to inspect it.</p>
-				<div class="scroll">
-					<ClaimText
-						body={wp.body}
-						claims={data.claims}
-						{selectedId}
-						{statusById}
-						{resultById}
-						{graph}
-						onSelect={selectClaim}
-					/>
-				</div>
-			</section>
-
 			<section class="panel col-mid">
 				<h3 class="ptitle">
 					<Icon name="list-checks" size={15} /> Claims <span class="count">{data.claims.length}</span>
 					<div class="seg" role="tablist" aria-label="Claims view">
+						<button type="button" role="tab" aria-selected={midView === 'doc'} class:on={midView === 'doc'} onclick={() => (midView = 'doc')}>Document</button>
 						<button type="button" role="tab" aria-selected={midView === 'list'} class:on={midView === 'list'} onclick={() => (midView = 'list')}>List</button>
 						<button type="button" role="tab" aria-selected={midView === 'graph'} class:on={midView === 'graph'} onclick={() => (midView = 'graph')}>Graph</button>
 					</div>
@@ -215,7 +200,17 @@
 					onRunAll={runAll}
 				/>
 				<div class="scroll">
-					{#if midView === 'graph'}
+					{#if midView === 'doc'}
+					<ClaimText
+						body={wp.body}
+						claims={data.claims}
+						{selectedId}
+						{statusById}
+						{resultById}
+						{graph}
+						onSelect={selectClaim}
+					/>
+					{:else if midView === 'graph'}
 					<ClaimGraph
 						claims={data.claims}
 						edges={data.edges}
@@ -234,7 +229,6 @@
 						{graph}
 						groupLabelFor={(c) => groupFor(c).label}
 						onSelect={selectClaim}
-						onRun={runOne}
 					/>
 					{/if}
 				</div>
@@ -276,14 +270,12 @@
 		color: var(--text-secondary);
 	}
 
-	/* Full-bleed breakout of the 1200px container so three columns get room. On
-	   wide screens the layout gives this a bounded height (the viewport minus the
-	   top bar and page padding) and it fills that; below the breakpoint it has no
-	   bound and simply flows with the page. */
+	/* Two panes flow within the page's 1200px container, aligned with the header
+	   and tabs above. On wide screens the layout gives this a bounded height (the
+	   viewport minus the top bar and page padding) and it fills that; below the
+	   breakpoint it has no bound and simply flows with the page. */
 	.workarea {
-		width: 100vw;
-		margin-left: calc(50% - 50vw);
-		padding: 0 var(--space-6);
+		width: 100%;
 		display: flex;
 		flex-direction: column;
 		flex: 1;
@@ -291,8 +283,6 @@
 	}
 	.wa-inner {
 		width: 100%;
-		max-width: 1500px;
-		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
 		flex: 1;
@@ -304,7 +294,7 @@
 	   each scrolls on its own — no column sticks while another flows. */
 	.cols {
 		display: grid;
-		grid-template-columns: minmax(300px, 1.1fr) minmax(260px, 0.9fr) minmax(320px, 1.2fr);
+		grid-template-columns: minmax(340px, 1.1fr) minmax(340px, 1fr);
 		grid-template-rows: 1fr;
 		gap: var(--space-5);
 		align-items: stretch;
@@ -338,12 +328,6 @@
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
 	}
-	.phint {
-		margin: 0 0 var(--space-4);
-		font-size: var(--text-sm);
-		color: var(--text-tertiary);
-		line-height: var(--leading-normal);
-	}
 
 	/* Each pane scrolls within its own height; the title/controls above stay put. */
 	.scroll {
@@ -375,12 +359,9 @@
 		.cols {
 			flex: initial;
 			min-height: auto;
-			grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 			grid-template-rows: auto;
 			align-items: start;
-		}
-		.col-doc {
-			grid-column: 1 / -1;
 		}
 		.panel {
 			overflow: visible;

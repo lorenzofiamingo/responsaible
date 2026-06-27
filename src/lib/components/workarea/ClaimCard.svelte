@@ -12,8 +12,7 @@
 		result,
 		info,
 		groupLabel,
-		onSelect,
-		onRun
+		onSelect
 	}: {
 		claim: AtomicClaim;
 		selected: boolean;
@@ -22,7 +21,6 @@
 		info?: ClaimGraphInfo;
 		groupLabel: string;
 		onSelect: () => void;
-		onRun: () => void;
 	} = $props();
 
 	const kind = $derived(CLAIM_KIND[claim.kind] ?? CLAIM_KIND.assertion);
@@ -68,9 +66,6 @@
 			{/if}
 		</div>
 	</button>
-	<button type="button" class="run" onclick={onRun} disabled={status === 'running'} title={`Run claim ${claim.idx + 1} check`}>
-		<Icon name={status === 'analyzed' ? 'rotate-ccw' : 'sparkles'} size={13} />
-	</button>
 </div>
 
 <style>
@@ -80,8 +75,8 @@
 		border: 1.5px solid var(--border-default);
 		border-radius: var(--radius-md);
 		background: var(--surface-card);
-		/* Clip children (e.g. the run button's hover fill) to the rounded corners.
-		   The selection box-shadow is drawn outside the border box, so it stays visible. */
+		/* Clip the hit area's hover state to the rounded corners. The selection
+		   box-shadow is drawn outside the border box, so it stays visible. */
 		overflow: hidden;
 		transition: border-color var(--duration-fast) var(--ease-out);
 	}
@@ -196,27 +191,6 @@
 		font-size: var(--text-xs);
 		color: var(--color-accent-active);
 		animation: pulse 1.1s var(--ease-in-out) infinite;
-	}
-	.run {
-		flex: none;
-		width: 38px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: transparent;
-		border: none;
-		border-left: 1.5px solid var(--border-subtle);
-		color: var(--text-secondary);
-		cursor: pointer;
-		transition: all var(--duration-fast) var(--ease-out);
-	}
-	.run:hover:not(:disabled) {
-		background: var(--terracotta-50);
-		color: var(--color-accent-active);
-	}
-	.run:disabled {
-		opacity: 0.5;
-		cursor: progress;
 	}
 	@keyframes pulse {
 		0%,
