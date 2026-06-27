@@ -118,9 +118,8 @@
 		--atom-line: var(--status-danger-fg);
 	}
 	.atom.sel {
-		/* Selection is shown by the highlight alone — no underline. */
+		/* Selection adds a highlight while keeping the status underline. */
 		background: var(--terracotta-50);
-		text-decoration-line: none;
 	}
 	@keyframes pulse {
 		0%,
