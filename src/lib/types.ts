@@ -3,7 +3,7 @@
 
 export interface WorkProduct {
 	id: string;
-	type: 'draft' | 'memo' | 'risk_analysis';
+	type: 'draft' | 'memo' | 'opinion' | 'risk_analysis';
 	title: string;
 	summary: string;
 	body: string;
@@ -98,7 +98,7 @@ export interface ExtractedTraceStep {
 }
 
 export interface ExtractedDraft {
-	type: 'draft' | 'memo' | 'risk_analysis';
+	type: 'draft' | 'memo' | 'opinion' | 'risk_analysis';
 	title: string;
 	summary: string;
 	body: string;

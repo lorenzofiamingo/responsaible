@@ -155,9 +155,15 @@
 		</svg>
 
 		<div class="legend">
-			<span><i class="sw order"></i> depends on</span>
-			<span><i class="sw qual"></i> qualifies</span>
-			<span><i class="sw conf"></i> conflict</span>
+			<span title="Solid arrow: this claim rests on another as a premise, definition, or elaboration. If the supporting claim fails, this one is undermined."
+				><i class="sw order"></i> depends on</span
+			>
+			<span title="Dashed arrow: this claim narrows or adds conditions to another, without supporting or contradicting it."
+				><i class="sw qual"></i> qualifies</span
+			>
+			<span title="Dashed line: this claim contradicts or is in tension with another."
+				><i class="sw conf"></i> conflict</span
+			>
 		</div>
 		{#if !edges.length}
 			<p class="none">No dependencies mapped for this document.</p>
@@ -258,6 +264,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;
+		cursor: help;
 	}
 	.sw {
 		width: 14px;
