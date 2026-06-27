@@ -148,6 +148,48 @@ export interface ExtractedDraft {
 	};
 }
 
+// --- Firm-knowledge intake / AI extraction --------------------------------------
+// Shape returned by POST /api/firm-knowledge/extract. A review-ready DRAFT (not yet
+// persisted): the /knowledge/new page binds these fields so a supervisor can correct
+// anything before it enters the shared, cross-matter firm corpus. Parallels
+// ExtractedDraft but drops the work-product-only fields (citations/risks/trace/matter).
+
+export interface FirmKnowledgeDoc {
+	id: string;
+	title: string;
+	category: string;
+	body: string;
+	/** Comma/space-separated topical tags (stored as a single string). */
+	tags: string;
+	/** Internal reference shown in the agent trace (no public URL — it is private). */
+	sourceRef: string;
+	createdAt: string;
+}
+
+export interface ExtractedKnowledge {
+	title: string;
+	category: 'memo' | 'precedent' | 'playbook' | 'guidance';
+	/** Array in the draft; joined to a comma-separated string on store. */
+	tags: string[];
+	/** Review-only one-liner — there is NO summary column; dropped on store. */
+	summary: string;
+	body: string;
+	sourceRef: string;
+	model: string;
+	meta: {
+		/** Which engine produced this draft. */
+		method: 'rules' | 'gemini';
+		/** Source of the text: plain text, a parsed PDF/Word doc, or a promoted work product. */
+		sourceKind: 'text' | 'pdf' | 'docx' | 'work_product';
+		/** Character count of the source text the extraction ran on. */
+		chars: number;
+		/** Non-fatal notes surfaced to the operator (e.g. "few tags derived"). */
+		warnings: string[];
+		/** Set only when the document was promoted from an existing work product. */
+		promotedFrom?: { workProductId: string; matterRef: string; title: string };
+	};
+}
+
 /**
  * A source the supervisor inserts by hand when (re)starting a work group on a
  * claim — an authority they want the analysis to take into account. A `celex` is

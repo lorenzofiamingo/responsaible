@@ -16,14 +16,15 @@ export interface KnowledgeHit {
 	score: number;
 }
 
-const STOP = new Set([
+export const STOP = new Set([
 	'the', 'and', 'for', 'with', 'that', 'this', 'from', 'are', 'was', 'has', 'have',
 	'not', 'but', 'any', 'all', 'its', 'a', 'an', 'of', 'to', 'in', 'on', 'or', 'is',
 	'as', 'by', 'be', 'it', 'shall', 'must', 'may', 'under', 'where'
 ]);
 
-/** Lowercase content words of length ≥ 3, de-duplicated. */
-function terms(text: string): string[] {
+/** Lowercase content words of length ≥ 3, de-duplicated. Shared with the tag deriver
+ *  so derived tags are guaranteed to be terms this ranker will actually score. */
+export function terms(text: string): string[] {
 	const out = new Set<string>();
 	for (const w of (text.toLowerCase().match(/[a-z]{3,}/g) ?? [])) {
 		if (!STOP.has(w)) out.add(w);

@@ -6,6 +6,7 @@ import {
 	atomicClaim,
 	citation,
 	claimEdge,
+	firmKnowledge,
 	matter,
 	riskSignal,
 	supervisoryAction,
@@ -448,4 +449,39 @@ export async function createMatter(db: DB, input: NewMatterInput): Promise<strin
 		createdAt: new Date().toISOString()
 	});
 	return id;
+}
+
+// --- Firm knowledge ----------------------------------------------------------
+
+export interface NewFirmKnowledgeInput {
+	title: string;
+	category: 'memo' | 'precedent' | 'playbook' | 'guidance';
+	body?: string;
+	/** Already comma-joined by the endpoint (the lexical ranker substring-matches it). */
+	tags?: string;
+	sourceRef?: string;
+}
+
+/**
+ * Insert one firm-knowledge row (a single insert — no child tables, unlike
+ * createWorkProduct). The corpus is FIRM-LEVEL: there is no matter scoping, so the
+ * same document is shared across every matter. Returns the new id.
+ */
+export async function createFirmKnowledge(db: DB, input: NewFirmKnowledgeInput): Promise<string> {
+	const id = `fk_${crypto.randomUUID()}`;
+	await db.insert(firmKnowledge).values({
+		id,
+		title: input.title,
+		category: input.category,
+		body: input.body ?? '',
+		tags: input.tags ?? '',
+		sourceRef: input.sourceRef ?? '',
+		createdAt: new Date().toISOString()
+	});
+	return id;
+}
+
+/** The whole firm corpus for the library view (newest first). */
+export async function listFirmKnowledge(db: DB) {
+	return db.select().from(firmKnowledge).orderBy(desc(firmKnowledge.createdAt)).all();
 }

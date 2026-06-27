@@ -4,13 +4,14 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import InfoTip from '$lib/components/InfoTip.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import { fmtDateTime, WP_TYPE } from '$lib/format';
+	import { CAN_SUBMIT, fmtDateTime, WP_TYPE } from '$lib/format';
 
 	let { data, children } = $props();
 
 	const base = $derived(`/work-products/${data.wp.id}`);
 	// The workspace tab is active on the child route; Summary is the index route.
 	const onWorkspace = $derived(page.url.pathname.startsWith(`${base}/workspace`));
+	const canSubmit = $derived(!!data.user && CAN_SUBMIT.has(data.user.role));
 
 	// Confidence is the supervision signal — the mean across the claims actually
 	// studied, not the work product's seeded self-reported prior. Null until the
@@ -35,7 +36,18 @@
 		<span>·</span>
 		<a class="matter-link" href="/matters/{data.wp.matterId}">{data.wp.matterName} · {data.wp.matterRef}</a>
 	</div>
-	<h1>{data.wp.title}</h1>
+	<div class="title-row">
+		<h1>{data.wp.title}</h1>
+		{#if canSubmit}
+			<a
+				class="promote"
+				href="/knowledge/new?from={data.wp.id}"
+				title="Add this document to the firm's private knowledge base"
+			>
+				<Icon name="book-open" size={14} /> <span>Add to firm knowledge</span>
+			</a>
+		{/if}
+	</div>
 	<p class="summary">{data.wp.summary}</p>
 	<div class="meta">
 		<StatusBadge status={data.wp.status} />
@@ -102,10 +114,35 @@
 		color: var(--text-link);
 		text-decoration: underline;
 	}
+	.title-row {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 16px;
+	}
 	.hdr h1 {
 		font-size: var(--text-xl);
 		margin: 0 0 8px;
 		line-height: var(--leading-snug);
+	}
+	.promote {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--font-display);
+		font-weight: var(--weight-medium);
+		font-size: var(--text-sm);
+		color: var(--text-primary);
+		text-decoration: none;
+		background: var(--surface-card);
+		border: 1.5px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		padding: 7px 12px;
+	}
+	.promote:hover {
+		border-color: var(--color-accent);
+		background: var(--terracotta-50);
 	}
 	.summary {
 		margin: 0 0 14px;

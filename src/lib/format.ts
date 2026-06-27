@@ -30,6 +30,39 @@ export const WP_TYPE = {
 	}
 } as const;
 
+// The firm's private knowledge base buckets — drive the category badge (library
+// list), the category <select> (add flow), and the stat-card counts. `desc` is the
+// one-line explainer surfaced in the badge tooltip. All icons/tones already exist.
+export const KNOWLEDGE_CATEGORY: Record<string, { label: string; icon: string; tone: Tone; desc: string }> = {
+	memo: {
+		label: 'Memo',
+		icon: 'file-text',
+		tone: 'neutral',
+		desc: "Internal research or analysis from the firm's own files — background the AI can draw on."
+	},
+	precedent: {
+		label: 'Precedent',
+		icon: 'gavel',
+		tone: 'accent',
+		desc: 'A precedent the firm relies on — a prior position, authority, or worked example.'
+	},
+	playbook: {
+		label: 'Playbook',
+		icon: 'list-checks',
+		tone: 'info',
+		desc: 'A reusable clause or standing negotiation position from the firm playbook.'
+	},
+	guidance: {
+		label: 'Guidance',
+		icon: 'scale',
+		tone: 'success',
+		desc: 'Standing guidance or a house rule the firm applies across matters.'
+	}
+};
+
+/** Canonical category order for selects and stat cards. */
+export const KNOWLEDGE_CATEGORY_ORDER = ['memo', 'precedent', 'playbook', 'guidance'] as const;
+
 /**
  * Provenance of a claim's assessment, keyed by the stored `analysis_source` enum.
  * Exactly two states reach the UI: `live` (a successful model run this session) and

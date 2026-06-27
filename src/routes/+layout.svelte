@@ -44,6 +44,13 @@
 					>
 						<Icon name="list-checks" size={14} /> <span class="label">Queue</span>
 					</a>
+					<a
+						class="navlink"
+						class:active={page.url.pathname.startsWith('/knowledge')}
+						href="/knowledge"
+					>
+						<Icon name="book-open" size={14} /> <span class="label">Knowledge</span>
+					</a>
 				</nav>
 			</div>
 			<div class="who">

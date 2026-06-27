@@ -27,8 +27,10 @@ const BODY_CAP = 60_000;
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
-/** Collapse the document to clean, single-spaced prose for analysis. */
-function normalize(raw: string): string {
+/** Collapse the document to clean, single-spaced prose for analysis.
+ *  Exported (with the titling/summary helpers below) so the firm-knowledge extractor
+ *  reuses the exact same battle-tested logic instead of drifting a second copy. */
+export function normalize(raw: string): string {
 	return raw
 		.replace(/\r\n?/g, '\n')
 		// Drop any bracketed-number tokens the source already carries (foreign
@@ -66,7 +68,7 @@ function injectMarkers(body: string, items: MarkerItem[]): string {
 	return out;
 }
 
-function prettifyFilename(name: string): string {
+export function prettifyFilename(name: string): string {
 	return name
 		.replace(/\.[a-z0-9]+$/i, '')
 		.replace(/[_\-]+/g, ' ')
@@ -78,16 +80,16 @@ function prettifyFilename(name: string): string {
 }
 
 /** A generic-looking filename ("document", "scan 1") shouldn't become the title. */
-function genericName(name: string): boolean {
+export function genericName(name: string): boolean {
 	return /^(document|untitled|scan|file|download|new doc|copy)\b/i.test(name) || name.length < 4;
 }
 
 /** Drop an email/memo header prefix ("Re:", "Subject -", …) from a line. */
-function stripHeadingPrefix(s: string): string {
+export function stripHeadingPrefix(s: string): string {
 	return s.replace(/^(re|subject|matter|project|fwd?|memo)\s*[:\-–]\s*/i, '').trim();
 }
 
-function pickTitle(text: string, filename: string | undefined, cits: DetectedCitation[]): string {
+export function pickTitle(text: string, filename: string | undefined, cits: DetectedCitation[]): string {
 	if (filename) {
 		const pretty = prettifyFilename(filename);
 		if (!genericName(pretty)) return pretty.slice(0, 140);
@@ -109,7 +111,7 @@ function pickTitle(text: string, filename: string | undefined, cits: DetectedCit
 
 const HEADING_LINE = /^(re|subject|matter|project|fwd?|memo)\s*[:\-–]/i;
 
-function pickSummary(text: string, cits: DetectedCitation[]): string {
+export function pickSummary(text: string, cits: DetectedCitation[]): string {
 	// Work block-by-block (not sentence-split — that mis-fires on "Inc.", "Art.",
 	// "No." in legal prose). Take the first real paragraph and trim it to a clean
 	// one-liner at a sentence boundary.
