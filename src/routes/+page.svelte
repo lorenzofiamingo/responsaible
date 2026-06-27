@@ -2,6 +2,7 @@
 	import Badge from '$lib/components/Badge.svelte';
 	import ConfidenceMeter from '$lib/components/ConfidenceMeter.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import { STATUS, WP_TYPE } from '$lib/format';
 
@@ -219,7 +220,13 @@
 
 					<div class="main">
 						<div class="toprow">
-							<span class="type"><Icon name={WP_TYPE[wp.type].icon} size={13} /> {WP_TYPE[wp.type].label}</span>
+							<InfoTip align="left" focusable={false}>
+								{#snippet label()}
+									<span class="type"><Icon name={WP_TYPE[wp.type].icon} size={13} /> {WP_TYPE[wp.type].label}</span>
+								{/snippet}
+								<strong>{WP_TYPE[wp.type].label}</strong>
+								<p>{WP_TYPE[wp.type].desc}</p>
+							</InfoTip>
 							<span class="matter">{wp.matterName} · <span class="ref">{wp.matterRef}</span></span>
 						</div>
 						<h2 class="title">{wp.title}</h2>

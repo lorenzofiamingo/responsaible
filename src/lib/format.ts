@@ -3,14 +3,51 @@
 
 export type Tone = 'accent' | 'neutral' | 'success' | 'warning' | 'danger' | 'info';
 
+// The four kinds of AI work product the supervisor triages. `desc` is the one-line
+// explainer surfaced in the type-badge tooltip (queue row + document header).
 export const WP_TYPE = {
-	draft: { label: 'Draft', icon: 'pencil' },
-	memo: { label: 'Memo', icon: 'file-text' },
+	draft: {
+		label: 'Draft',
+		icon: 'pencil',
+		desc: 'A working draft the AI produced — such as a clause, agreement, or filing — for the supervisor to refine before it is finalised.'
+	},
+	memo: {
+		label: 'Memo',
+		icon: 'file-text',
+		desc: 'An internal legal memorandum: research and analysis prepared for use inside the firm, not addressed to an outside party.'
+	},
 	// An external, reliance-bearing legal opinion — the highest sign-off stakes,
 	// so it reads distinctly (gavel) from the internal memo it is NOT.
-	opinion: { label: 'Opinion', icon: 'gavel' },
-	risk_analysis: { label: 'Risk analysis', icon: 'shield-alert' }
+	opinion: {
+		label: 'Opinion',
+		icon: 'gavel',
+		desc: 'A formal legal opinion a client or third party may rely on — the highest sign-off stakes, so it is held to the strictest review.'
+	},
+	risk_analysis: {
+		label: 'Risk analysis',
+		icon: 'shield-alert',
+		desc: 'A structured assessment of legal risk and exposure, flagging where the matter could go wrong and how serious it is.'
+	}
 } as const;
+
+/**
+ * Provenance of a claim's assessment, keyed by the stored `analysis_source` enum.
+ * Exactly two states reach the UI: `live` (a successful model run this session) and
+ * `seed`, shown as "baseline" — the analysis pre-computed offline when the work
+ * product was ingested, also used as the fallback when a live re-run can't reach a model.
+ */
+export const ANALYSIS_SOURCE: Record<'seed' | 'live', { label: string; icon: string; desc: string }> = {
+	seed: {
+		label: 'baseline',
+		icon: 'history',
+		desc: 'Pre-computed offline by the agent pipeline when this work product was ingested. Always available with no network — and the fallback shown when a live re-run can’t reach a model.'
+	},
+	live: {
+		label: 'live',
+		icon: 'sparkles',
+		desc: 'A fresh run of the chosen work group against this claim, grounding each cited authority against the live EU CELLAR (EUR-Lex) database at review time.'
+	}
+};
 
 export const STATUS: Record<string, { label: string; tone: Tone; icon: string }> = {
 	pending: { label: 'Pending review', tone: 'warning', icon: 'clock' },

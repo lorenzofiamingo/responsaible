@@ -2,10 +2,11 @@
 	import Badge from '$lib/components/Badge.svelte';
 	import ConfidenceMeter from '$lib/components/ConfidenceMeter.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import RiskBadge from '$lib/components/RiskBadge.svelte';
 	import SourceCard from '$lib/components/SourceCard.svelte';
 	import type { ClaimGraphInfo } from '$lib/claim-graph';
-	import { CLAIM_KIND, CLAIM_RELATION, TRACE_KIND, VERDICT } from '$lib/format';
+	import { ANALYSIS_SOURCE, CLAIM_KIND, CLAIM_RELATION, TRACE_KIND, VERDICT } from '$lib/format';
 	import { FIGURE_ROLE, MODELS, type WorkGroup } from '$lib/workgroups';
 	import type { AtomicClaim, Citation, ClaimEdge, ClaimRunResult } from '$lib/types';
 	import WorkGroupConfigurator from './WorkGroupConfigurator.svelte';
@@ -87,10 +88,21 @@
 						</Badge>
 					{/if}
 					<ConfidenceMeter value={result.confidence} />
-					<span class="src" title="Result source">
-						<Icon name={result.analysisSource === 'live' ? 'sparkles' : 'history'} size={11} />
-						{result.analysisSource === 'live' ? 'live' : 'baseline'}
-					</span>
+					<InfoTip align="right">
+						{#snippet label()}
+							{@const sm = ANALYSIS_SOURCE[result.analysisSource] ?? ANALYSIS_SOURCE.seed}
+							<span class="src">
+								<Icon name={sm.icon} size={11} />
+								{sm.label}
+							</span>
+						{/snippet}
+						<strong>Result source</strong>
+						<p>Where this assessment came from:</p>
+						<ul>
+							<li><b>baseline</b> — {ANALYSIS_SOURCE.seed.desc}</li>
+							<li><b>live</b> — {ANALYSIS_SOURCE.live.desc}</li>
+						</ul>
+					</InfoTip>
 				</div>
 
 				{#if info?.undermined}

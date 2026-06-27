@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import ConfidenceMeter from '$lib/components/ConfidenceMeter.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import { fmtDateTime, WP_TYPE } from '$lib/format';
 
@@ -21,8 +22,15 @@
 
 <header class="hdr">
 	<div class="eyebrow itaily-eyebrow">
-		<Icon name={WP_TYPE[data.wp.type].icon} size={12} />
-		{WP_TYPE[data.wp.type].label} · {data.wp.matterName} · {data.wp.matterRef}
+		<InfoTip align="left">
+			{#snippet label()}
+				<Icon name={WP_TYPE[data.wp.type].icon} size={12} />
+				<span>{WP_TYPE[data.wp.type].label}</span>
+			{/snippet}
+			<strong>{WP_TYPE[data.wp.type].label}</strong>
+			<p>{WP_TYPE[data.wp.type].desc}</p>
+		</InfoTip>
+		<span>· {data.wp.matterName} · {data.wp.matterRef}</span>
 	</div>
 	<h1>{data.wp.title}</h1>
 	<p class="summary">{data.wp.summary}</p>
