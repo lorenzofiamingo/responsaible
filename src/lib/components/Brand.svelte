@@ -31,4 +31,12 @@
 		letter-spacing: var(--tracking-tight);
 		color: var(--text-primary);
 	}
+
+	/* On phones, keep just the logo so the topbar never overflows. */
+	@media (max-width: 440px) {
+		.sep,
+		.product {
+			display: none;
+		}
+	}
 </style>

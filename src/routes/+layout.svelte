@@ -30,7 +30,9 @@
 			<Brand />
 			<div class="who">
 				{#if canSubmit}
-					<a class="add" href="/new"><Icon name="file-text" size={14} /> Add work product</a>
+					<a class="add" href="/new" title="Add work product">
+						<Icon name="file-text" size={14} /> <span class="label">Add work product</span>
+					</a>
 				{/if}
 				<div class="meta">
 					<span class="role"><Icon name={role.icon} size={12} /> {role.label}</span>
@@ -39,7 +41,7 @@
 				<Avatar name={data.user.name} size={34} />
 				<button class="switch" onclick={switchUser} disabled={switching} title="Sign out and switch user">
 					<Icon name="rotate-ccw" size={14} />
-					Switch
+					<span class="label">Switch</span>
 				</button>
 			</div>
 		</header>
@@ -149,5 +151,48 @@
 	}
 	.auth-shell {
 		min-height: 100vh;
+	}
+
+	/* Reclaim space as the bar narrows: drop the email, then the role,
+	   then collapse the buttons to icon-only — the avatar still carries identity. */
+	@media (max-width: 860px) {
+		.topbar {
+			gap: 12px;
+			padding: 0 var(--space-4);
+		}
+		.who {
+			gap: 12px;
+		}
+		.email {
+			display: none;
+		}
+	}
+	@media (max-width: 600px) {
+		.who {
+			gap: 8px;
+		}
+		.meta {
+			display: none;
+		}
+		.add,
+		.switch {
+			padding: 7px;
+		}
+		.add .label,
+		.switch .label {
+			/* Visually hidden but kept for screen readers; the title attr labels it too. */
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			padding: 0;
+			margin: -1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+			white-space: nowrap;
+			border: 0;
+		}
+		.content {
+			padding: var(--space-4);
+		}
 	}
 </style>
