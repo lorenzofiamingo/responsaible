@@ -55,7 +55,7 @@
 	// overridden. The "one work group for all" action is just a bulk override —
 	// it writes the same group onto every claim, which can then be re-tuned one
 	// by one. There is no separate global/override mode layered on top.
-	let midView = $state<'list' | 'graph'>('graph');
+	let midView = $state<'doc' | 'list' | 'graph'>('doc');
 	let bulkGroup = $state<WorkGroup>(PRESETS[DEFAULT_PRESET]);
 	let overrideById = $state<Record<string, WorkGroup>>({});
 
@@ -185,26 +185,11 @@
 <div class="workarea">
 	<div class="wa-inner">
 		<div class="cols">
-			<section class="panel col-doc">
-				<h3 class="ptitle"><Icon name="file-text" size={15} /> Document</h3>
-				<p class="phint">The first agent split the draft into {data.claims.length} atomic claims. Click any to inspect it.</p>
-				<div class="scroll">
-					<ClaimText
-						body={wp.body}
-						claims={data.claims}
-						{selectedId}
-						{statusById}
-						{resultById}
-						{graph}
-						onSelect={selectClaim}
-					/>
-				</div>
-			</section>
-
 			<section class="panel col-mid">
 				<h3 class="ptitle">
 					<Icon name="list-checks" size={15} /> Claims <span class="count">{data.claims.length}</span>
 					<div class="seg" role="tablist" aria-label="Claims view">
+						<button type="button" role="tab" aria-selected={midView === 'doc'} class:on={midView === 'doc'} onclick={() => (midView = 'doc')}>Document</button>
 						<button type="button" role="tab" aria-selected={midView === 'list'} class:on={midView === 'list'} onclick={() => (midView = 'list')}>List</button>
 						<button type="button" role="tab" aria-selected={midView === 'graph'} class:on={midView === 'graph'} onclick={() => (midView = 'graph')}>Graph</button>
 					</div>
@@ -218,7 +203,17 @@
 					onRunAll={runAll}
 				/>
 				<div class="scroll">
-					{#if midView === 'graph'}
+					{#if midView === 'doc'}
+					<ClaimText
+						body={wp.body}
+						claims={data.claims}
+						{selectedId}
+						{statusById}
+						{resultById}
+						{graph}
+						onSelect={selectClaim}
+					/>
+					{:else if midView === 'graph'}
 					<ClaimGraph
 						claims={data.claims}
 						edges={data.edges}
@@ -237,7 +232,6 @@
 						{graph}
 						groupLabelFor={(c) => groupFor(c).label}
 						onSelect={selectClaim}
-						onRun={runOne}
 					/>
 					{/if}
 				</div>
@@ -279,22 +273,21 @@
 		color: var(--text-secondary);
 	}
 
-	/* Full-bleed breakout of the 1200px container so the three columns get room.
-	   Each column is as tall as its own content; the page scrolls normally. */
+	/* Two panes flow within the page's 1200px container, aligned with the header
+	   and tabs above. Each column is as tall as its own content; the page scrolls
+	   normally. */
 	.workarea {
-		width: 100vw;
-		margin-left: calc(50% - 50vw);
-		padding: 0 var(--space-6) var(--space-6);
+		width: 100%;
+		padding-bottom: var(--space-6);
 	}
 	.wa-inner {
-		max-width: 1500px;
-		margin: 0 auto;
+		width: 100%;
 	}
 
-	/* Three columns, top-aligned, each sized to its own content. */
+	/* Two columns, top-aligned, each sized to its own content. */
 	.cols {
 		display: grid;
-		grid-template-columns: minmax(300px, 1.1fr) minmax(260px, 0.9fr) minmax(320px, 1.2fr);
+		grid-template-columns: minmax(340px, 1.1fr) minmax(340px, 1fr);
 		gap: var(--space-5);
 		align-items: start;
 	}
@@ -320,20 +313,11 @@
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
 	}
-	.phint {
-		margin: 0 0 var(--space-4);
-		font-size: var(--text-sm);
-		color: var(--text-tertiary);
-		line-height: var(--leading-normal);
-	}
 
-	/* Below the three-up breakpoint, collapse to two columns then one. */
+	/* Relax the column min-widths as the page narrows, then stack to one column. */
 	@media (max-width: 1200px) {
 		.cols {
-			grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-		}
-		.col-doc {
-			grid-column: 1 / -1;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		}
 	}
 	@media (max-width: 820px) {
