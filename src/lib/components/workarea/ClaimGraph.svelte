@@ -155,23 +155,23 @@
 		</svg>
 
 		<div class="legend">
-			<span class="li" tabindex="0">
+			<span class="li" role="button" tabindex="0" aria-describedby="cg-tip-order">
 				<i class="sw order"></i> depends on
-				<span class="tip" role="tooltip"
+				<span class="tip" role="tooltip" id="cg-tip-order"
 					>Solid arrow: this claim rests on another as a premise, definition, or elaboration. If
 					the supporting claim fails, this one is undermined.</span
 				>
 			</span>
-			<span class="li" tabindex="0">
+			<span class="li" role="button" tabindex="0" aria-describedby="cg-tip-qual">
 				<i class="sw qual"></i> qualifies
-				<span class="tip" role="tooltip"
+				<span class="tip" role="tooltip" id="cg-tip-qual"
 					>Dashed arrow: this claim narrows or adds conditions to another, without supporting or
 					contradicting it.</span
 				>
 			</span>
-			<span class="li" tabindex="0">
+			<span class="li" role="button" tabindex="0" aria-describedby="cg-tip-conf">
 				<i class="sw conf"></i> conflict
-				<span class="tip" role="tooltip"
+				<span class="tip" role="tooltip" id="cg-tip-conf"
 					>Dashed line: this claim contradicts or is in tension with another.</span
 				>
 			</span>
