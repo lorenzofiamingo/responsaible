@@ -10,7 +10,7 @@
 	import { buildClaimGraph } from '$lib/claim-graph';
 	import { CAN_SUPERVISE, ROLE } from '$lib/format';
 	import { DEFAULT_PRESET, PRESETS, type PresetId, type WorkGroup } from '$lib/workgroups';
-	import type { AtomicClaim, ClaimRunResult } from '$lib/types';
+	import type { AtomicClaim, ClaimReviewState, ClaimRunResult, SupervisorInput } from '$lib/types';
 
 	let { data } = $props();
 
@@ -34,7 +34,8 @@
 			riskRationale: c.riskRationale,
 			citationMarkers: c.citationMarkers ?? [],
 			figureTrace: c.figureTrace ?? [],
-			ranAt: c.ranAt ?? ''
+			ranAt: c.ranAt ?? '',
+			supervisorInput: c.supervisorInput ?? null
 		};
 	}
 
@@ -49,6 +50,33 @@
 			claims0.map((c) => [c.id, seededResult(c)]).filter(([, r]) => r) as [string, ClaimRunResult][]
 		)
 	);
+
+	// --- supervisor overrides (manual verdict) and manual run input, keyed by claim ---
+	let reviewById = $state<Record<string, ClaimReviewState>>(
+		Object.fromEntries(
+			claims0.map((c) => [
+				c.id,
+				{ verdict: c.reviewVerdict, note: c.reviewNote ?? '', by: c.reviewedBy, at: c.reviewedAt }
+			])
+		)
+	);
+	let inputById = $state<Record<string, SupervisorInput>>(
+		Object.fromEntries(claims0.map((c) => [c.id, c.supervisorInput ?? { guidance: '', sources: [] }]))
+	);
+
+	function reviewFor(id: string): ClaimReviewState {
+		return reviewById[id] ?? { verdict: null, note: '', by: null, at: null };
+	}
+	function inputFor(id: string): SupervisorInput {
+		return inputById[id] ?? { guidance: '', sources: [] };
+	}
+	function hasInput(inp: SupervisorInput | undefined): boolean {
+		if (!inp) return false;
+		if ((inp.guidance ?? '').trim()) return true;
+		return (inp.sources ?? []).some((s) =>
+			[s.celex, s.title, s.snippet, s.url].some((v) => (v ?? '').trim())
+		);
+	}
 
 	// --- work-group selection ---
 	// Each claim resolves to its splitter-assigned preset unless individually
@@ -80,7 +108,58 @@
 	const claimById = $derived(
 		Object.fromEntries(data.claims.map((c) => [c.id, c])) as Record<string, AtomicClaim>
 	);
-	const graph = $derived(buildClaimGraph(data.claims, data.edges, resultById));
+
+	// A manual override is the single source of truth for a claim's verdict once set:
+	// it counts as analyzed, drives the verdict-derived tone/confidence, and clears the
+	// AI's risk flag (the supervisor's call supersedes it). These EFFECTIVE maps feed the
+	// document/list/graph views and the risk-propagation graph, so an override flows
+	// everywhere — including undermining the claims that rest on it.
+	const OVERRIDE_CONF: Record<string, number> = {
+		supported: 0.95,
+		weak: 0.55,
+		unsupported: 0.12,
+		flag: 0.1
+	};
+	function blankResult(id: string): ClaimRunResult {
+		return {
+			claimId: id,
+			idx: claimById[id]?.idx ?? 0,
+			status: 'analyzed',
+			analysisSource: 'live',
+			presetUsed: '',
+			verdict: null,
+			analysisSummary: '',
+			confidence: 0,
+			riskCategory: null,
+			riskSeverity: null,
+			riskRationale: '',
+			citationMarkers: [],
+			figureTrace: [],
+			ranAt: ''
+		};
+	}
+	const effResultById = $derived.by(() => {
+		const out: Record<string, ClaimRunResult> = { ...resultById };
+		for (const c of data.claims) {
+			const v = reviewById[c.id]?.verdict;
+			if (!v) continue;
+			out[c.id] = {
+				...(resultById[c.id] ?? blankResult(c.id)),
+				verdict: v,
+				confidence: OVERRIDE_CONF[v] ?? 0.5,
+				riskCategory: null,
+				riskSeverity: null
+			};
+		}
+		return out;
+	});
+	const effStatusById = $derived.by(() => {
+		const out: Record<string, string> = { ...statusById };
+		for (const c of data.claims) if (reviewById[c.id]?.verdict) out[c.id] = 'analyzed';
+		return out;
+	});
+
+	const graph = $derived(buildClaimGraph(data.claims, data.edges, effResultById));
 	const selectedInfo = $derived(selectedId ? (graph.get(selectedId) ?? null) : null);
 
 	function selectClaim(id: string) {
@@ -107,6 +186,16 @@
 		return out;
 	}
 
+	/** Per-claim manual input to feed the run — only for claims that actually have some. */
+	function inputsFor(ids: string[]): Record<string, SupervisorInput> {
+		const out: Record<string, SupervisorInput> = {};
+		for (const id of ids) {
+			const inp = inputById[id];
+			if (hasInput(inp)) out[id] = inp;
+		}
+		return out;
+	}
+
 	type RunLine = Omit<ClaimRunResult, 'status'> & { status: string; error?: string };
 	function applyResult(r: RunLine) {
 		if (r.status === 'error') {
@@ -115,6 +204,8 @@
 		}
 		statusById[r.claimId] = 'analyzed';
 		resultById[r.claimId] = { ...r, status: 'analyzed' };
+		// Reflect the resolved input (each source stamped with its CELLAR status).
+		if (r.supervisorInput) inputById[r.claimId] = r.supervisorInput;
 	}
 
 	async function runClaims(ids: string[]) {
@@ -124,7 +215,11 @@
 			const res = await fetch(`/api/work-products/${wp.id}/analyze`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ claimIds: ids, workGroups: payloadFor(ids) })
+				body: JSON.stringify({
+					claimIds: ids,
+					workGroups: payloadFor(ids),
+					supervisorInputs: inputsFor(ids)
+				})
 			});
 			if (!res.ok || !res.body) {
 				for (const id of ids) statusById[id] = resultById[id] ? 'analyzed' : 'pending';
@@ -172,6 +267,46 @@
 	function setGroupForSelected(wg: WorkGroup) {
 		if (selectedId) overrideById = { ...overrideById, [selectedId]: wg };
 	}
+
+	// --- manual verdict override (persisted + hash-chained into the audit ledger) ---
+	async function saveReview(verdict: string, note: string) {
+		if (!selectedId || !canSupervise) return;
+		const id = selectedId;
+		const res = await fetch(`/api/work-products/${wp.id}/claims/${id}/review`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ verdict, note })
+		});
+		if (!res.ok) throw new Error('review failed');
+		const body = (await res.json()) as {
+			review: { verdict: string | null; note: string; reviewedBy: string | null; reviewedAt: string | null };
+		};
+		reviewById = {
+			...reviewById,
+			[id]: {
+				verdict: body.review.verdict,
+				note: body.review.note ?? '',
+				by: body.review.reviewedBy,
+				at: body.review.reviewedAt
+			}
+		};
+	}
+
+	async function clearReview() {
+		if (!selectedId || !canSupervise) return;
+		const id = selectedId;
+		const res = await fetch(`/api/work-products/${wp.id}/claims/${id}/review`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ verdict: null })
+		});
+		if (!res.ok) throw new Error('review failed');
+		reviewById = { ...reviewById, [id]: { verdict: null, note: '', by: null, at: null } };
+	}
+
+	function setInputForSelected(v: SupervisorInput) {
+		if (selectedId) inputById = { ...inputById, [selectedId]: v };
+	}
 </script>
 
 {#if !canSupervise}
@@ -208,8 +343,8 @@
 						body={wp.body}
 						claims={data.claims}
 						{selectedId}
-						{statusById}
-						{resultById}
+						statusById={effStatusById}
+						resultById={effResultById}
 						{graph}
 						onSelect={selectClaim}
 					/>
@@ -218,8 +353,8 @@
 						claims={data.claims}
 						edges={data.edges}
 						{graph}
-						{statusById}
-						{resultById}
+						statusById={effStatusById}
+						resultById={effResultById}
 						{selectedId}
 						onSelect={selectClaim}
 					/>
@@ -227,8 +362,8 @@
 					<ClaimList
 						claims={data.claims}
 						{selectedId}
-						{statusById}
-						{resultById}
+						statusById={effStatusById}
+						resultById={effResultById}
 						{graph}
 						groupLabelFor={(c) => groupFor(c).label}
 						onSelect={selectClaim}
@@ -248,10 +383,16 @@
 						citations={data.citations}
 						info={selectedInfo}
 						{claimById}
-						{resultById}
+						resultById={effResultById}
+						{canSupervise}
+						review={selectedId ? reviewFor(selectedId) : { verdict: null, note: '', by: null, at: null }}
+						input={selectedId ? inputFor(selectedId) : { guidance: '', sources: [] }}
 						onSelectClaim={selectClaim}
 						onGroupChange={setGroupForSelected}
 						onRun={() => selectedId && runOne(selectedId)}
+						onReview={saveReview}
+						onClearReview={clearReview}
+						onInputChange={setInputForSelected}
 					/>
 				</div>
 			</section>

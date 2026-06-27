@@ -123,6 +123,38 @@ export interface ExtractedDraft {
 	};
 }
 
+/**
+ * A source the supervisor inserts by hand when (re)starting a work group on a
+ * claim — an authority they want the analysis to take into account. A `celex` is
+ * resolved live against EU CELLAR (same path as document citations); `celexStatus`
+ * is filled in by the run so the panel can show whether it verified.
+ */
+export interface SupervisorSource {
+	celex?: string;
+	title?: string;
+	locator?: string;
+	snippet?: string;
+	url?: string;
+	/** Live CELLAR resolution of `celex`, written back after a live run. */
+	celexStatus?: 'unchecked' | 'verified' | 'unresolved';
+}
+
+/** Manual context the supervisor attaches to a claim's work-group run. */
+export interface SupervisorInput {
+	/** Free-text instruction to steer the analysis. */
+	guidance?: string;
+	/** Authorities the supervisor wants grounded / considered. */
+	sources?: SupervisorSource[];
+}
+
+/** The supervisor's manual verdict override on a claim, as held in the work area. */
+export interface ClaimReviewState {
+	verdict: string | null;
+	note: string;
+	by: string | null;
+	at: string | null;
+}
+
 /** What one ADK figure did for a claim during analysis. */
 export interface FigureTrace {
 	role: string;
@@ -158,6 +190,16 @@ export interface AtomicClaim {
 	citationMarkers: number[] | null;
 	figureTrace: FigureTrace[] | null;
 	ranAt: string | null;
+	// --- supervisor overrides (manual, on top of the AI analysis) ---
+	/** The supervisor's manual verdict, overriding the AI's. null ⇒ no override. */
+	reviewVerdict: string | null;
+	/** Optional written reason for the manual verdict. */
+	reviewNote: string;
+	/** Who set the manual verdict (actor email), and when. */
+	reviewedBy: string | null;
+	reviewedAt: string | null;
+	/** Manual guidance / sources the supervisor last ran the work group with. */
+	supervisorInput: SupervisorInput | null;
 	createdAt: string;
 }
 
@@ -195,4 +237,6 @@ export interface ClaimRunResult {
 	citationMarkers: number[];
 	figureTrace: FigureTrace[];
 	ranAt: string;
+	/** Echoes the manual input the run used, with each source's CELLAR status resolved. */
+	supervisorInput?: SupervisorInput | null;
 }
