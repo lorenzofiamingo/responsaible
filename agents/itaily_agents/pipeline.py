@@ -310,7 +310,7 @@ def build_knowledge_research_agent() -> LlmAgent:
     )
 
 
-def build_pipeline() -> SequentialAgent:
+def build_pipeline(include_claim_analyzer: bool = True) -> SequentialAgent:
     """Compose the agents into one ordered pipeline.
 
     Returns a ``SequentialAgent`` whose ``run_async`` (driven by a Runner in
@@ -320,6 +320,11 @@ def build_pipeline() -> SequentialAgent:
     The optional web / firm-knowledge research agents are inserted right after the
     CELLAR researcher when enabled via env (they need extra keys), so the default
     run stays fully functional with just the Gemini/Claude credentials.
+
+    ``include_claim_analyzer``: when the per-claim ADK WORK GROUP is enabled
+    (ITAILY_CLAIM_WORKGROUP=1, see claim_workgroup.py), the batch ``claim_analyzer``
+    is dropped — each atomic claim is instead rated by the parallel-researchers +
+    critic-loop work group, which supersedes the single-call analyzer.
     """
     sub_agents = [build_research_agent()]
     if _truthy("ITAILY_ENABLE_WEB"):
@@ -330,9 +335,10 @@ def build_pipeline() -> SequentialAgent:
         build_drafter_agent(),
         build_claim_splitter_agent(),
         build_claim_grapher_agent(),
-        build_claim_analyzer_agent(),
-        build_critic_agent(),
     ]
+    if include_claim_analyzer:
+        sub_agents.append(build_claim_analyzer_agent())
+    sub_agents.append(build_critic_agent())
     return SequentialAgent(name="itaily_legal_pipeline", sub_agents=sub_agents)
 
 

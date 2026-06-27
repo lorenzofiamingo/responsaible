@@ -116,3 +116,45 @@ def get_model_label() -> str:
     if provider == "nvidia":
         return MODEL_LABEL_NEMOTRON
     return MODEL_LABEL_GEMINI
+
+
+# --- per-figure model routing (the per-claim work group) --------------------------
+#
+# Unlike the matter pipeline (one provider for every agent via get_model), the
+# per-claim WORK GROUP routes EACH figure to the model its preset names. This maps a
+# work-group ModelId (src/lib/workgroups.ts MODELS / agents/itaily_agents/workgroups.py)
+# to a concrete ADK model, mirroring API_MODEL + MODELS[...].provider in
+# src/lib/server/analyze.ts so a figure routes to the SAME model family offline (this
+# ADK graph) and online (the runtime mirror). Gemini is a native string; Anthropic /
+# Perplexity go through LiteLlm; Nemotron uses the open NIM path (self-hostable).
+_FIGURE_MODEL: dict[str, tuple[str, str | None]] = {
+    "gemini-2.5-flash": ("google", "gemini-2.5-flash"),
+    "gemini-2.5-pro": ("google", "gemini-2.5-pro"),
+    "claude-haiku": ("anthropic", "anthropic/claude-haiku-4-5-20251001"),
+    "claude-sonnet": ("anthropic", "anthropic/claude-sonnet-4-6"),
+    "claude-opus-4-8": ("anthropic", "anthropic/claude-opus-4-8"),
+    "nemotron": ("nvidia", DEFAULT_NEMOTRON_MODEL),
+    "perplexity": ("perplexity", None),  # ref built from PERPLEXITY_MODEL below
+}
+
+
+def model_for(model_id: str):
+    """Return the ADK model object/string for a work-group figure's ModelId.
+
+    Accepts either a string id (native Gemini path) or a ``LiteLlm`` instance for the
+    non-Gemini providers — both are valid ``LlmAgent(model=...)`` arguments.
+    """
+    provider, ref = _FIGURE_MODEL.get(model_id, _FIGURE_MODEL["gemini-2.5-flash"])
+    if provider == "google":
+        return ref
+    if provider == "nvidia":
+        return _nemotron_model()
+
+    from google.adk.models.lite_llm import LiteLlm
+
+    if provider == "perplexity":
+        # LiteLLM routes Perplexity under the ``perplexity/`` prefix; reads PERPLEXITY_API_KEY.
+        variant = os.getenv("PERPLEXITY_MODEL", "sonar")
+        return LiteLlm(model=f"perplexity/{variant}")
+    # anthropic — LiteLlm reads ANTHROPIC_API_KEY from the environment automatically.
+    return LiteLlm(model=ref)

@@ -39,6 +39,44 @@ Grounding is against the public **EU CELLAR** API (no auth): a SPARQL endpoint
 for search and a REST-by-CELEX endpoint to confirm an act actually exists. The
 tools are in `itaily_agents/tools.py` and are usable standalone.
 
+## The per-claim work group (System B)
+
+The pipeline above (call it **System A**) is one strictly-sequential
+`SequentialAgent`. There is a **second** ADK graph — the **per-claim work group**
+in `itaily_agents/claim_workgroup.py` — and *this* one uses ADK's workflow agents to
+express real parallelism and a bounded loop. It is the offline twin of the runtime
+per-claim analysis in `src/lib/server/analyze.ts`:
+
+```
+itaily_claim_workgroup  (SequentialAgent)
+├─ grounding                 LlmAgent              Stage 0 — resolve the cited CELEX
+├─ research_panel            ParallelAgent         Stage 1 — researchers, concurrently
+│    ├─ research_cellar       LlmAgent  [cellar]      EU Law researcher
+│    ├─ research_web          LlmAgent  [web]         Web researcher (Perplexity)
+│    └─ research_knowledge    LlmAgent  [knowledge]   Firm-knowledge researcher (open model)
+└─ critic_escalation_loop    LoopAgent(max_iterations=2)   Stage 2 + 3
+     ├─ critic                LlmAgent  [cellar_fetch]  decisive verdict + confidence + risk
+     └─ escalation_gate       BaseAgent → EventActions(escalate=True) to stop the loop
+```
+
+The graph is **built from a work-group preset** (`workgroups.py` PRESETS / figures) —
+the same presets the console uses — so a claim routes to the same figures (model +
+tool) offline here and online in the browser. The `LoopAgent` re-runs the critic until
+it is confident (`escalation_gate` yields `escalate=True`) or `max_iterations` (2) is
+hit — exactly the bounded `MAX_ESCALATIONS = 1` of the runtime. Per-figure model
+routing lives in `models.model_for()` (mirrors `API_MODEL` in `analyze.ts`).
+
+Enable it for seed generation with **`ITAILY_CLAIM_WORKGROUP=1`**: the matter pipeline
+then drops its batch `claim_analyzer` and each atomic claim is instead rated by this
+work group, which also emits an authentic per-figure `figureTrace` (derived from the
+work group's own event stream). Drive it interactively with the ADK dev UI too — it
+exposes a module-level `root_agent` (the flagship `full_research_panel` preset):
+
+```bash
+adk run itaily_agents.claim_workgroup       # or: adk web, then pick the claim work group
+python -m itaily_agents.claim_workgroup      # prints the agent tree (structural check)
+```
+
 ## Setup
 
 Requires Python **3.11–3.13**. (Not 3.14 yet: the `google-adk → google-genai →
@@ -189,9 +227,10 @@ agents/
 ├── out/work-products.json      generated output (gitignored)
 └── itaily_agents/
     ├── __init__.py
-    ├── models.py               Gemini|Claude switch (one place)
+    ├── models.py               Gemini|Claude switch + per-figure model_for() routing
     ├── tools.py                CELLAR search/fetch + CELEX helper
     ├── workgroups.py           per-claim preset auto-assignment (mirrors src/lib/workgroups.ts)
-    ├── pipeline.py             research → drafter → splitter → grapher → analyzer → critic
+    ├── pipeline.py             System A: research → drafter → splitter → grapher → analyzer → critic
+    ├── claim_workgroup.py      System B: per-claim ADK graph (grounding ∥ researchers → critic loop)
     └── run_seed.py             entry point: run, capture events, emit JSON
 ```

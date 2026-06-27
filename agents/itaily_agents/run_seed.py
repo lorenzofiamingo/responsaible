@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 import uuid
 from dataclasses import dataclass, field
@@ -38,7 +39,12 @@ import re
 from dotenv import load_dotenv
 
 from .models import get_model_label
-from .workgroups import auto_preset
+from .workgroups import PRESETS, auto_preset
+
+
+def _truthy(name: str) -> bool:
+    """Read a boolean env flag (mirrors pipeline._truthy)."""
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
 
 # Output location. A human copies this into the app and runs `npm run seed`.
 OUT_DIR = Path(__file__).resolve().parent.parent / "out"
@@ -314,6 +320,7 @@ def build_claims(
     claims_raw: list[dict[str, Any]],
     analyses_raw: list[dict[str, Any]],
     body: str,
+    figure_traces: dict[int, list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     """Merge the splitter's atomic claims with the per-claim analyses into the loader shape.
 
@@ -325,7 +332,13 @@ def build_claims(
     positions (Gemini got nearly all of them wrong), but the claim text itself is
     an exact substring, so the span is derived deterministically. A running cursor
     keeps repeated phrases in document order.
+
+    ``figure_traces`` (idx -> per-figure trace): when the per-claim ADK WORK GROUP
+    rated the claims, each claim's ``analysis.figureTrace`` is filled with the real
+    multi-figure trace from that run; otherwise it stays ``None`` (the batch analyzer
+    makes no per-figure calls).
     """
+    figure_traces = figure_traces or {}
     by_idx = {a.get("idx"): a for a in (analyses_raw or [])}
     claims: list[dict[str, Any]] = []
     cursor = 0
@@ -343,7 +356,8 @@ def build_claims(
         else:
             char_start, char_end = pos, pos + len(text)
             cursor = char_end
-        a = by_idx.get(c.get("idx"))
+        idx = c.get("idx")
+        a = by_idx.get(idx)
         if a is None:
             # The per-claim analyzer produced no entry for this claim — don't
             # fabricate a confident "supported". Flag it for the supervisor so a
@@ -355,7 +369,7 @@ def build_claims(
                 "riskCategory": "missing_authority",
                 "riskSeverity": "low",
                 "riskRationale": "The per-claim reviewer returned no verdict for this claim.",
-                "figureTrace": None,
+                "figureTrace": figure_traces.get(idx),
             }
             citation_markers = markers
         else:
@@ -366,7 +380,7 @@ def build_claims(
                 "riskCategory": a.get("riskCategory"),
                 "riskSeverity": a.get("riskSeverity"),
                 "riskRationale": a.get("riskRationale", ""),
-                "figureTrace": None,
+                "figureTrace": figure_traces.get(idx),
             }
             citation_markers = a.get("citationMarkers") or markers
         claims.append(
@@ -513,6 +527,52 @@ def assemble_work_product(
 # --- running one matter through ADK -----------------------------------------------
 
 
+async def _analyze_claims_with_workgroup(
+    claims_raw: list[dict[str, Any]],
+    draft_citations: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]]]:
+    """Rate every atomic claim with the per-claim ADK WORK GROUP (System B).
+
+    For each claim, the deterministic ``auto_preset`` picks the same work-group preset
+    the console would pick, and that preset's figures are run as a real ADK graph
+    (grounding → parallel researchers → critic/escalation loop) via
+    ``claim_workgroup.run_claim_workgroup``. Returns the per-claim analyses (same shape
+    the batch analyzer produced) plus a map of idx -> per-figure trace.
+
+    Claims are run concurrently with a small bound (ITAILY_CLAIM_CONCURRENCY, default 2)
+    so a matter's claims don't fan out into an unbounded burst of model calls. A claim
+    that errors is skipped (its analysis falls back to the "flag" path in build_claims).
+    """
+    from .claim_workgroup import run_claim_workgroup
+
+    sem = asyncio.Semaphore(max(1, int(os.getenv("ITAILY_CLAIM_CONCURRENCY", "2"))))
+
+    async def one(claim: dict[str, Any]) -> tuple[int, dict[str, Any], list[dict[str, Any]]] | None:
+        idx = claim.get("idx")
+        text = claim.get("text", "")
+        kind = claim.get("kind", "assertion")
+        figures = PRESETS.get(auto_preset(text, kind), PRESETS["standard_review"])["figures"]
+        async with sem:
+            try:
+                analysis, figure_trace = await run_claim_workgroup(text, idx, draft_citations, figures)
+            except Exception as exc:  # one claim failing must not lose the matter
+                print(f"    [claim {idx}] work group failed: {exc!r}", file=sys.stderr)
+                return None
+        return idx, analysis, figure_trace
+
+    results = await asyncio.gather(*[one(c) for c in claims_raw])
+    analyses_raw: list[dict[str, Any]] = []
+    traces: dict[int, list[dict[str, Any]]] = {}
+    for r in results:
+        if r is None:
+            continue
+        idx, analysis, figure_trace = r
+        analyses_raw.append(analysis)
+        if idx is not None:
+            traces[idx] = figure_trace
+    return analyses_raw, traces
+
+
 async def run_matter(matter: SeedMatter) -> dict[str, Any]:
     """Drive the pipeline for one matter and return an assembled work product.
 
@@ -521,6 +581,10 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
       - ``await session_service.create_session(app_name, user_id, session_id)``
       - ``async for event in runner.run_async(user_id, session_id, new_message)``
       - read final structured state from the session after the loop.
+
+    When ITAILY_CLAIM_WORKGROUP=1, the batch ``claim_analyzer`` is dropped from the
+    pipeline and each atomic claim is instead rated by the per-claim ADK WORK GROUP
+    (System B): parallel researchers + a bounded critic/escalation loop.
     """
     # Imported here so --dry-run never requires ADK to be installed.
     from google.adk.runners import Runner
@@ -536,6 +600,8 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
         build_pipeline,
     )
 
+    use_workgroup = _truthy("ITAILY_CLAIM_WORKGROUP")
+
     session_service = InMemorySessionService()
     session_id = f"seed-{matter.id}-{uuid.uuid4().hex[:8]}"
 
@@ -546,7 +612,8 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
     )
 
     runner = Runner(
-        agent=build_pipeline(),
+        # Drop the batch analyzer when the per-claim work group will rate the claims.
+        agent=build_pipeline(include_claim_analyzer=not use_workgroup),
         app_name=APP_NAME,
         session_service=session_service,
     )
@@ -575,9 +642,19 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
         )
     critique = _parse_json_blob(state.get(CRITIC_OUTPUT_KEY, ""))
     claims_raw = _parse_json_blob(state.get(CLAIMS_OUTPUT_KEY, "")).get("claims", [])
-    analyses_raw = _parse_json_blob(state.get(CLAIM_ANALYSES_OUTPUT_KEY, "")).get("analyses", [])
     edges_raw = _parse_json_blob(state.get(CLAIM_EDGES_OUTPUT_KEY, "")).get("edges", [])
-    claims = build_claims(claims_raw, analyses_raw, draft.get("body", ""))
+
+    if use_workgroup:
+        # System B: rate each atomic claim with the parallel-researchers + critic-loop
+        # ADK work group, and capture its authentic per-figure trace.
+        analyses_raw, claim_traces = await _analyze_claims_with_workgroup(
+            claims_raw, draft.get("citations", []) or []
+        )
+    else:
+        analyses_raw = _parse_json_blob(state.get(CLAIM_ANALYSES_OUTPUT_KEY, "")).get("analyses", [])
+        claim_traces = None
+
+    claims = build_claims(claims_raw, analyses_raw, draft.get("body", ""), claim_traces)
     edges = build_edges(edges_raw, len(claims))
 
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
