@@ -38,8 +38,8 @@
 		</div>
 	</div>
 	{#if canSubmit}
-		<a class="add" href="/new?matter={m.id}" title="Add work product to this matter">
-			<Icon name="file-text" size={14} /> <span>Add work product</span>
+		<a class="add" href="/new?matter={m.id}" title="Add a new work product to this matter">
+			<Icon name="file-text" size={16} /> <span>Add new work product</span>
 		</a>
 	{/if}
 </header>
@@ -49,7 +49,7 @@
 		<Icon name="file-text" size={30} color="var(--text-tertiary)" />
 		<p class="emsg">No work products in this matter yet.</p>
 		{#if canSubmit}
-			<a class="emadd" href="/new?matter={m.id}"><Icon name="file-text" size={14} /> Add work product</a>
+			<a class="emadd" href="/new?matter={m.id}"><Icon name="file-text" size={14} /> Add new work product</a>
 		{/if}
 	</div>
 {:else}
@@ -135,7 +135,7 @@
 	}
 
 	.add {
-		flex: none;
+		flex-shrink: 0;
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
@@ -147,11 +147,19 @@
 		background: var(--surface-card);
 		border: 1.5px solid var(--border-strong);
 		border-radius: var(--radius-md);
-		padding: 8px 14px;
+		padding: 9px 14px;
+		box-shadow: var(--shadow-xs);
+		transition:
+			border-color var(--duration-fast) var(--ease-out),
+			background var(--duration-fast) var(--ease-out);
 	}
 	.add:hover {
 		border-color: var(--color-accent);
 		background: var(--terracotta-50);
+	}
+	.add:focus-visible {
+		outline: none;
+		box-shadow: var(--shadow-focus);
 	}
 
 	.queue {

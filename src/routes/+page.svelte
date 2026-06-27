@@ -2,9 +2,11 @@
 	import Badge from '$lib/components/Badge.svelte';
 	import ConfidenceMeter from '$lib/components/ConfidenceMeter.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import { MATTER_STATUS } from '$lib/format';
+	import { CAN_SUBMIT, MATTER_STATUS } from '$lib/format';
 
 	let { data } = $props();
+
+	const canSubmit = $derived(!!data.user && CAN_SUBMIT.has(data.user.role));
 
 	type Card = (typeof data.matters)[number];
 
@@ -65,13 +67,25 @@
 	}
 </script>
 
+<!-- Reserves the exact vertical space the matter detail page's "Back to matters"
+     link occupies, so the "Add new Matter" button lines up with that page's
+     "Add new work product" button. Invisible but takes up layout space. -->
+<span class="backspace" aria-hidden="true"><Icon name="arrow-right" size={14} /> Back to matters</span>
+
 <section class="head">
-	<span class="itaily-eyebrow">Matters</span>
-	<h1>Matters awaiting your review</h1>
-	<p class="sub">
-		Each client engagement and the AI work products filed under it — highest-risk matters first, so
-		the work most needing a human is at the top. Open a matter to review its work or add new work.
-	</p>
+	<div class="head-text">
+		<span class="itaily-eyebrow">Matters</span>
+		<h1>Matters awaiting your review</h1>
+		<p class="sub">
+			Each client engagement and the AI work products filed under it — highest-risk matters first, so
+			the work most needing a human is at the top. Open a matter to review its work or add new work.
+		</p>
+	</div>
+	{#if canSubmit}
+		<a class="add" href="/matters/new" title="Open a new matter">
+			<Icon name="folder-open" size={16} /> <span>Add new Matter</span>
+		</a>
+	{/if}
 </section>
 
 <div class="stats">
@@ -213,8 +227,54 @@
 {/if}
 
 <style>
+	/* Mirrors .back on the matter detail page so both pages reserve the same
+	   leading vertical space and their top-right action buttons align. */
+	.backspace {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: var(--text-sm);
+		margin-bottom: var(--space-4);
+		visibility: hidden;
+		user-select: none;
+		pointer-events: none;
+	}
 	.head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: var(--space-5);
 		margin-bottom: var(--space-5);
+	}
+	.head-text {
+		min-width: 0;
+	}
+	.add {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--font-display);
+		font-weight: var(--weight-medium);
+		font-size: var(--text-sm);
+		color: var(--text-primary);
+		text-decoration: none;
+		background: var(--surface-card);
+		border: 1.5px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		padding: 9px 14px;
+		box-shadow: var(--shadow-xs);
+		transition:
+			border-color var(--duration-fast) var(--ease-out),
+			background var(--duration-fast) var(--ease-out);
+	}
+	.add:hover {
+		border-color: var(--color-accent);
+		background: var(--terracotta-50);
+	}
+	.add:focus-visible {
+		outline: none;
+		box-shadow: var(--shadow-focus);
 	}
 	.head h1 {
 		font-size: var(--text-2xl);
@@ -517,6 +577,10 @@
 	}
 
 	@media (max-width: 720px) {
+		.head {
+			flex-direction: column;
+			gap: var(--space-4);
+		}
 		.stats {
 			grid-template-columns: repeat(2, 1fr);
 		}

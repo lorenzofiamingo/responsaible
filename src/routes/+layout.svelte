@@ -5,7 +5,7 @@
 	import Avatar from '$lib/components/Avatar.svelte';
 	import Brand from '$lib/components/Brand.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import { CAN_SUBMIT, ROLE } from '$lib/format';
+	import { ROLE } from '$lib/format';
 
 	let { children, data } = $props();
 
@@ -18,7 +18,6 @@
 	}
 
 	const role = $derived(data.user ? (ROLE[data.user.role] ?? ROLE.supervisor) : null);
-	const canSubmit = $derived(!!data.user && CAN_SUBMIT.has(data.user.role));
 </script>
 
 <svelte:head>
@@ -48,11 +47,6 @@
 				</nav>
 			</div>
 			<div class="who">
-				{#if canSubmit}
-					<a class="add" href="/matters/new" title="Open a new matter">
-						<Icon name="folder-open" size={14} /> <span class="label">New matter</span>
-					</a>
-				{/if}
 				<div class="meta">
 					<span class="role"><Icon name={role.icon} size={12} /> {role.label}</span>
 					<span class="email">{data.user.email}</span>
@@ -131,24 +125,6 @@
 		align-items: center;
 		gap: 14px;
 	}
-	.add {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		font-family: var(--font-display);
-		font-weight: var(--weight-medium);
-		font-size: var(--text-sm);
-		color: var(--text-primary);
-		text-decoration: none;
-		background: var(--surface-card);
-		border: 1.5px solid var(--border-strong);
-		border-radius: var(--radius-md);
-		padding: 7px 12px;
-	}
-	.add:hover {
-		border-color: var(--color-accent);
-		background: var(--terracotta-50);
-	}
 	.meta {
 		display: flex;
 		flex-direction: column;
@@ -225,12 +201,10 @@
 		.meta {
 			display: none;
 		}
-		.add,
 		.switch,
 		.navlink {
 			padding: 7px;
 		}
-		.add .label,
 		.switch .label,
 		.navlink .label {
 			/* Visually hidden but kept for screen readers; the title attr labels it too. */
