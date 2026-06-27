@@ -112,7 +112,11 @@
 
 		<button class="run" onclick={onRun} disabled={status === 'running'}>
 			<Icon name={status === 'analyzed' ? 'rotate-ccw' : 'sparkles'} size={15} />
-			{status === 'running' ? 'Analyzing…' : status === 'analyzed' ? 'Re-run this claim' : 'Run this claim'}
+			{status === 'running'
+				? 'Analyzing…'
+				: status === 'analyzed'
+					? `Re-run claim ${claim.idx + 1} check`
+					: `Run claim ${claim.idx + 1} check`}
 		</button>
 	</div>
 {/if}
