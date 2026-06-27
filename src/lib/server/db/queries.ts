@@ -1,5 +1,6 @@
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import { GENESIS_HASH } from '../audit';
+import { deriveClaims } from '../claims';
 import type { DB } from './client';
 import {
 	agentAction,
@@ -314,6 +315,40 @@ export async function createWorkProduct(db: DB, input: NewWorkProductInput): Pro
 			})
 		);
 	});
+
+	// Atomic claims — split the body into verifiable units with a seeded baseline
+	// analysis, the SAME way the offline seed does (scripts/load-seed.mjs). Without
+	// this the document is ingested with zero claims and the workspace is empty:
+	// the per-claim run reveals each claim's baseline as its offline fallback.
+	for (const c of deriveClaims(input)) {
+		const a = c.analysis;
+		stmts.push(
+			db.insert(atomicClaim).values({
+				id: `${id}_claim${c.idx}`,
+				workProductId: id,
+				idx: c.idx,
+				text: c.text,
+				charStart: c.charStart,
+				charEnd: c.charEnd,
+				kind: c.kind,
+				assignedPreset: c.assignedPreset,
+				status: 'pending',
+				analysisSource: null,
+				presetUsed: '',
+				workGroupJson: null,
+				verdict: a.verdict,
+				analysisSummary: a.summary,
+				confidence: a.confidence,
+				riskCategory: a.riskCategory,
+				riskSeverity: a.riskSeverity,
+				riskRationale: a.riskRationale,
+				citationMarkers: c.citationMarkers,
+				figureTrace: null,
+				ranAt: null,
+				createdAt
+			})
+		);
+	}
 
 	await db.batch(stmts as unknown as Parameters<typeof db.batch>[0]);
 	return id;
