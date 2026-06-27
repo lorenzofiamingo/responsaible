@@ -945,13 +945,20 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 		: verdictSummary;
 
 	// ---- Honest per-figure trace (real ms + real model per figure) ------------------
+	// Each configured figure is one work-group MEMBER, but a member can emit several
+	// steps (e.g. a CELLAR researcher does a `retrieve` then a `reason`). We collect a
+	// member's steps together and tag them all with its 1-based index so the UI can group
+	// them under one heading instead of reading two steps as two figures.
 	const figureTrace: FigureTrace[] = [];
+	let member = 0;
 	for (const f of figures) {
+		member++;
+		const steps: FigureTrace[] = [];
 		if (f.role === 'research') {
-			const steps = traceByFigure.get(f);
-			if (steps && steps.length) figureTrace.push(...steps);
+			const research = traceByFigure.get(f);
+			if (research && research.length) steps.push(...research);
 			else
-				figureTrace.push({
+				steps.push({
 					role: f.role,
 					model: f.model,
 					effort: f.effort,
@@ -961,12 +968,10 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 					ms: 0
 				});
 			if (f === critic) {
-				figureTrace.push({ role: f.role, model: f.model, effort: f.effort, kind: 'critique', summary: criticSummary, ms: criticMs, escalated });
+				steps.push({ role: f.role, model: f.model, effort: f.effort, kind: 'critique', summary: criticSummary, ms: criticMs, escalated });
 			}
-			continue;
-		}
-		if (f === critic) {
-			figureTrace.push({
+		} else if (f === critic) {
+			steps.push({
 				role: f.role,
 				model: f.model,
 				effort: f.effort,
@@ -975,20 +980,22 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 				ms: criticMs,
 				escalated
 			});
-			continue;
+		} else {
+			// A non-decisive critic or a drafter makes no call at verification time.
+			steps.push({
+				role: f.role,
+				model: f.model,
+				effort: f.effort,
+				kind: f.role === 'drafter' ? 'draft' : 'critique',
+				summary:
+					f.role === 'drafter'
+						? 'Drafting happens offline at seed time; no runtime call.'
+						: 'Deferred to the lead reviewer for the decisive verdict.',
+				ms: 0
+			});
 		}
-		// A non-decisive critic or a drafter makes no call at verification time.
-		figureTrace.push({
-			role: f.role,
-			model: f.model,
-			effort: f.effort,
-			kind: f.role === 'drafter' ? 'draft' : 'critique',
-			summary:
-				f.role === 'drafter'
-					? 'Drafting happens offline at seed time; no runtime call.'
-					: 'Deferred to the lead reviewer for the decisive verdict.',
-			ms: 0
-		});
+		for (const s of steps) s.member = member;
+		figureTrace.push(...steps);
 	}
 
 	return {

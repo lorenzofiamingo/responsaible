@@ -234,6 +234,12 @@ export interface FigureTrace {
 	ms: number;
 	/** Which research tool produced this step: cellar | web | knowledge. */
 	tool?: string;
+	/**
+	 * 1-based index of the configured work-group member (figure) this step belongs to.
+	 * One member can emit several steps (e.g. a `retrieve` then a `reason`); the UI groups
+	 * steps that share a member instead of showing them as separate figures.
+	 */
+	member?: number;
 	/** Sources the tool surfaced (authorities, web pages, or firm documents). */
 	sources?: TraceSource[];
 	/** Set on the critic step when the bounded escalation loop re-ran it. */

@@ -82,6 +82,28 @@
 	function verdictLabel(v: string | null | undefined): string {
 		return v && VERDICT[v] ? VERDICT[v].label.toLowerCase() : 'a weaker';
 	}
+
+	// Group trace steps by the work-group member that produced them. One member can emit
+	// several steps (e.g. a CELLAR researcher does a `retrieve` then a `reason`), so we
+	// number them step n/m and let the UI nest the extra steps under the member rather
+	// than reading them as separate figures. Rows without a `member` (older/seeded data)
+	// each fall into their own group, so they render exactly as before.
+	const traceRows = $derived.by(() => {
+		const rows = result?.figureTrace ?? [];
+		const memberKey = (f: (typeof rows)[number], i: number) => f.member ?? -i - 1;
+		const totals = new Map<number, number>();
+		rows.forEach((f, i) => {
+			const k = memberKey(f, i);
+			totals.set(k, (totals.get(k) ?? 0) + 1);
+		});
+		const seen = new Map<number, number>();
+		return rows.map((f, i) => {
+			const k = memberKey(f, i);
+			const step = (seen.get(k) ?? 0) + 1;
+			seen.set(k, step);
+			return { f, step, steps: totals.get(k) ?? 1, first: step === 1 };
+		});
+	});
 </script>
 
 {#if !claim}
@@ -191,15 +213,21 @@
 					<div class="block">
 						<h4><Icon name="git-branch" size={13} /> Work group trace</h4>
 						<ul class="trace">
-							{#each result.figureTrace as f, i (i)}
+							{#each traceRows as { f, step, steps, first }, i (i)}
 								{@const toolMeta = f.tool ? RESEARCH_TOOL[f.tool as ResearchTool] : null}
-								<li>
-									<Icon name={toolMeta?.icon ?? TRACE_KIND[f.kind]?.icon ?? 'brain'} size={13} />
+								{@const kindMeta = TRACE_KIND[f.kind]}
+								<li class:cont={!first}>
+									<Icon name={toolMeta?.icon ?? kindMeta?.icon ?? 'brain'} size={first ? 13 : 12} />
 									<div class="tbody">
 										<span class="tline">
-											<strong>{FIGURE_ROLE[f.role as 'research']?.label ?? f.role}</strong>
-											{#if toolMeta}<span class="tool-badge"><Icon name={toolMeta.icon} size={10} /> {toolMeta.label}</span>{/if}
+											{#if first}
+												<strong>{FIGURE_ROLE[f.role as 'research']?.label ?? f.role}</strong>
+												{#if toolMeta}<span class="tool-badge"><Icon name={toolMeta.icon} size={10} /> {toolMeta.label}</span>{/if}
+											{:else}
+												<span class="substep">{kindMeta?.label ?? f.kind}</span>
+											{/if}
 											<span class="tmeta">{MODELS[f.model as 'claude-sonnet']?.label ?? f.model} · {f.effort} · {f.ms}ms</span>
+											{#if steps > 1}<span class="step-no" title="Step {step} of {steps} by this member">{step}/{steps}</span>{/if}
 										</span>
 										<span class="tsum">{f.summary}</span>
 										{#if f.sources?.length}
@@ -516,6 +544,29 @@
 		grid-template-columns: 16px 1fr;
 		gap: 8px;
 		align-items: start;
+	}
+	/* A member's extra steps (retrieve → reason) nest under its first step. */
+	.trace li.cont {
+		margin-top: -4px;
+		margin-left: 8px;
+		padding-left: 16px;
+		border-left: 1.5px solid var(--border-subtle);
+	}
+	.substep {
+		font-size: var(--text-xs);
+		font-weight: 500;
+		text-transform: capitalize;
+		color: var(--text-secondary);
+	}
+	.step-no {
+		margin-left: auto;
+		align-self: center;
+		font-family: var(--font-mono);
+		font-size: 9px;
+		color: var(--text-tertiary);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-xs);
+		padding: 0 4px;
 	}
 	.tbody {
 		display: flex;
