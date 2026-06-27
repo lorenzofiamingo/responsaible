@@ -50,12 +50,12 @@
 			{analyzed} / {total} analyzed
 		</span>
 		<button type="button" class="bulk-toggle" onclick={openBulk} disabled={total === 0}>
-			<Icon name="git-fork" size={12} /> Set one work group for all
+			<Icon name="git-fork" size={12} /> Set one work group for all claims
 		</button>
 	</div>
 </div>
 
-<Modal open={bulkOpen} title="Set one work group for all" onClose={() => (bulkOpen = false)}>
+<Modal open={bulkOpen} title="Set one work group for all claims" onClose={() => (bulkOpen = false)}>
 	<p class="bhint">
 		Applies one work group to all {total} claim{total === 1 ? '' : 's'} at once. Tune any single
 		claim afterwards in its panel.
