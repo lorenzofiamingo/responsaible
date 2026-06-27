@@ -6,11 +6,13 @@ import {
 	atomicClaim,
 	citation,
 	claimEdge,
+	matter,
 	riskSignal,
 	supervisoryAction,
 	workProduct
 } from './schema';
-import type { AtomicClaim } from './schema';
+import type { AtomicClaim, Matter, WorkProduct } from './schema';
+import type { QueueRowData } from '$lib/types';
 
 /** Queue ordering: most urgent first (priority desc), then least confident first. */
 export async function getQueue(db: DB) {
@@ -200,6 +202,7 @@ export interface NewWorkProductInput {
 	title: string;
 	summary?: string;
 	body?: string;
+	matterId?: string;
 	matterRef?: string;
 	matterName?: string;
 	agentName?: string;
@@ -248,6 +251,7 @@ export async function createWorkProduct(db: DB, input: NewWorkProductInput): Pro
 			title: input.title,
 			summary: input.summary ?? '',
 			body: input.body ?? '',
+			matterId: input.matterId ?? '',
 			matterRef: input.matterRef ?? '',
 			matterName: input.matterName ?? '',
 			agentName: input.agentName ?? '',
@@ -311,5 +315,137 @@ export async function createWorkProduct(db: DB, input: NewWorkProductInput): Pro
 	});
 
 	await db.batch(stmts as unknown as Parameters<typeof db.batch>[0]);
+	return id;
+}
+
+// --- Matters -----------------------------------------------------------------
+
+/**
+ * Augment work products with the risk rollup, citation count and per-claim
+ * assessment the queue and matter views render. One pass over the child tables so
+ * the cross-matter queue and the per-matter list compute confidence identically.
+ */
+export async function augmentQueue(db: DB, items: WorkProduct[]): Promise<QueueRowData[]> {
+	const [risks, cits, assessMap] = await Promise.all([
+		db.select().from(riskSignal).all(),
+		db.select({ wp: citation.workProductId }).from(citation).all(),
+		getClaimAssessments(db)
+	]);
+	const riskMap = new Map<string, { high: number; med: number; low: number; total: number }>();
+	for (const r of risks) {
+		const e = riskMap.get(r.workProductId) ?? { high: 0, med: 0, low: 0, total: 0 };
+		e.total++;
+		if (r.severity === 'high') e.high++;
+		else if (r.severity === 'med') e.med++;
+		else e.low++;
+		riskMap.set(r.workProductId, e);
+	}
+	const citMap = new Map<string, number>();
+	for (const c of cits) citMap.set(c.wp, (citMap.get(c.wp) ?? 0) + 1);
+	return items.map((wp) => {
+		const assessed = assessMap.get(wp.id) ?? { total: 0, analyzed: 0, mean: null };
+		// Effective confidence: the verified per-claim mean once any claim is run,
+		// else the generator's self-reported prior — keeps "lowest confidence first".
+		return {
+			...wp,
+			risk: riskMap.get(wp.id) ?? { high: 0, med: 0, low: 0, total: 0 },
+			citationCount: citMap.get(wp.id) ?? 0,
+			assessed,
+			effConfidence: assessed.mean ?? wp.confidence
+		};
+	});
+}
+
+/** A matter with its rolled-up work-product stats — one matters-list card. */
+export interface MatterCard {
+	matter: Matter;
+	count: number;
+	pending: number;
+	risk: { high: number; med: number; low: number; total: number };
+	citationCount: number;
+	/** Mean effective confidence across the matter's work products (null if none). */
+	effConfidence: number | null;
+	/** Lowest effective confidence in the matter — the item most needing a human. */
+	lowestConfidence: number | null;
+}
+
+/** Every matter with rolled-up risk / confidence / pending counts — the home list. */
+export async function getMatters(db: DB): Promise<MatterCard[]> {
+	const [matters, rows] = await Promise.all([
+		db.select().from(matter).orderBy(asc(matter.name)).all(),
+		augmentQueue(db, await getQueue(db))
+	]);
+	const byMatter = new Map<string, QueueRowData[]>();
+	for (const r of rows) {
+		const list = byMatter.get(r.matterId) ?? [];
+		list.push(r);
+		byMatter.set(r.matterId, list);
+	}
+	return matters.map((m) => {
+		const own = byMatter.get(m.id) ?? [];
+		const risk = { high: 0, med: 0, low: 0, total: 0 };
+		let citationCount = 0;
+		let pending = 0;
+		const confs: number[] = [];
+		for (const w of own) {
+			risk.high += w.risk.high;
+			risk.med += w.risk.med;
+			risk.low += w.risk.low;
+			risk.total += w.risk.total;
+			citationCount += w.citationCount;
+			if (w.status === 'pending') pending++;
+			confs.push(w.effConfidence);
+		}
+		return {
+			matter: m,
+			count: own.length,
+			pending,
+			risk,
+			citationCount,
+			effConfidence: confs.length ? confs.reduce((a, b) => a + b, 0) / confs.length : null,
+			lowestConfidence: confs.length ? Math.min(...confs) : null
+		};
+	});
+}
+
+/** A matter and its work products (augmented, queue-ordered), or null if absent. */
+export async function getMatter(db: DB, id: string) {
+	const m = await db.select().from(matter).where(eq(matter.id, id)).get();
+	if (!m) return null;
+	const items = await db
+		.select()
+		.from(workProduct)
+		.where(eq(workProduct.matterId, id))
+		.orderBy(desc(workProduct.priority), asc(workProduct.confidence))
+		.all();
+	const queue = await augmentQueue(db, items);
+	return { matter: m, queue };
+}
+
+/** Just the matter row — for the /new guard and the create API. */
+export async function getMatterHeader(db: DB, id: string) {
+	return db.select().from(matter).where(eq(matter.id, id)).get();
+}
+
+export interface NewMatterInput {
+	ref: string;
+	name: string;
+	client?: string;
+	description?: string;
+	status?: 'open' | 'closed';
+}
+
+/** Create a matter; returns the new id. Caller enforces ref uniqueness (409). */
+export async function createMatter(db: DB, input: NewMatterInput): Promise<string> {
+	const id = `mat_${crypto.randomUUID()}`;
+	await db.insert(matter).values({
+		id,
+		ref: input.ref,
+		name: input.name,
+		client: input.client ?? '',
+		description: input.description ?? '',
+		status: input.status ?? 'open',
+		createdAt: new Date().toISOString()
+	});
 	return id;
 }

@@ -18,6 +18,8 @@
 	import externalLink from '$lib/icons/external-link.svg?raw';
 	import fileSearch from '$lib/icons/file-search.svg?raw';
 	import fileText from '$lib/icons/file-text.svg?raw';
+	import folder from '$lib/icons/folder.svg?raw';
+	import folderOpen from '$lib/icons/folder-open.svg?raw';
 	import gavel from '$lib/icons/gavel.svg?raw';
 	import gitBranch from '$lib/icons/git-branch.svg?raw';
 	import gitFork from '$lib/icons/git-fork.svg?raw';
@@ -55,6 +57,8 @@
 		'external-link': externalLink,
 		'file-search': fileSearch,
 		'file-text': fileText,
+		folder,
+		'folder-open': folderOpen,
 		gavel,
 		'git-branch': gitBranch,
 		'git-fork': gitFork,

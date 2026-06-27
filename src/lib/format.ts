@@ -58,6 +58,12 @@ export const STATUS: Record<string, { label: string; tone: Tone; icon: string }>
 	escalated: { label: 'Escalated', tone: 'accent', icon: 'circle-arrow-up' }
 };
 
+// A matter's lifecycle state — shown as a badge on the matters list and detail.
+export const MATTER_STATUS: Record<string, { label: string; tone: Tone; icon: string }> = {
+	open: { label: 'Open', tone: 'success', icon: 'folder-open' },
+	closed: { label: 'Closed', tone: 'neutral', icon: 'folder' }
+};
+
 export const SEVERITY: Record<string, { label: string; tone: Tone }> = {
 	high: { label: 'High', tone: 'danger' },
 	med: { label: 'Medium', tone: 'warning' },

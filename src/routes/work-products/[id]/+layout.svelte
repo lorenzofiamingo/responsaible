@@ -18,7 +18,9 @@
 	const assessed = $derived(data.assessed);
 </script>
 
-<a class="back" href="/"><Icon name="arrow-right" size={14} class="flip" /> Back to queue</a>
+<a class="back" href="/matters/{data.wp.matterId}"
+	><Icon name="arrow-right" size={14} class="flip" /> Back to {data.wp.matterName}</a
+>
 
 <header class="hdr">
 	<div class="eyebrow itaily-eyebrow">
@@ -30,7 +32,8 @@
 			<strong>{WP_TYPE[data.wp.type].label}</strong>
 			<p>{WP_TYPE[data.wp.type].desc}</p>
 		</InfoTip>
-		<span>· {data.wp.matterName} · {data.wp.matterRef}</span>
+		<span>·</span>
+		<a class="matter-link" href="/matters/{data.wp.matterId}">{data.wp.matterName} · {data.wp.matterRef}</a>
 	</div>
 	<h1>{data.wp.title}</h1>
 	<p class="summary">{data.wp.summary}</p>
@@ -90,6 +93,14 @@
 		align-items: center;
 		gap: 6px;
 		margin-bottom: 8px;
+	}
+	.matter-link {
+		color: inherit;
+		text-decoration: none;
+	}
+	.matter-link:hover {
+		color: var(--text-link);
+		text-decoration: underline;
 	}
 	.hdr h1 {
 		font-size: var(--text-xl);

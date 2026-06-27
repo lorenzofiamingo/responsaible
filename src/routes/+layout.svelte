@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { page } from '$app/state';
 	import { authClient } from '$lib/auth-client';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import Brand from '$lib/components/Brand.svelte';
@@ -27,11 +28,29 @@
 {#if data.user && role}
 	<div class="shell">
 		<header class="topbar">
-			<Brand />
+			<div class="left">
+				<Brand />
+				<nav class="nav" aria-label="Primary">
+					<a
+						class="navlink"
+						class:active={page.url.pathname === '/' || page.url.pathname.startsWith('/matters')}
+						href="/"
+					>
+						<Icon name="folder" size={14} /> <span class="label">Matters</span>
+					</a>
+					<a
+						class="navlink"
+						class:active={page.url.pathname.startsWith('/queue')}
+						href="/queue"
+					>
+						<Icon name="list-checks" size={14} /> <span class="label">Queue</span>
+					</a>
+				</nav>
+			</div>
 			<div class="who">
 				{#if canSubmit}
-					<a class="add" href="/new" title="Add work product">
-						<Icon name="file-text" size={14} /> <span class="label">Add work product</span>
+					<a class="add" href="/matters/new" title="Open a new matter">
+						<Icon name="folder-open" size={14} /> <span class="label">New matter</span>
 					</a>
 				{/if}
 				<div class="meta">
@@ -74,6 +93,38 @@
 		background: rgba(250, 248, 244, 0.85);
 		backdrop-filter: blur(8px);
 		border-bottom: 1.5px solid var(--border-default);
+	}
+	.left {
+		display: flex;
+		align-items: center;
+		gap: 20px;
+		min-width: 0;
+	}
+	.nav {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+	.navlink {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--font-display);
+		font-weight: var(--weight-medium);
+		font-size: var(--text-sm);
+		color: var(--text-secondary);
+		text-decoration: none;
+		padding: 7px 11px;
+		border-radius: var(--radius-md);
+		border: 1.5px solid transparent;
+	}
+	.navlink:hover {
+		color: var(--text-primary);
+		background: var(--surface-hover);
+	}
+	.navlink.active {
+		color: var(--color-accent-active, var(--color-accent));
+		background: var(--terracotta-50);
 	}
 	.who {
 		display: flex;
@@ -175,11 +226,13 @@
 			display: none;
 		}
 		.add,
-		.switch {
+		.switch,
+		.navlink {
 			padding: 7px;
 		}
 		.add .label,
-		.switch .label {
+		.switch .label,
+		.navlink .label {
 			/* Visually hidden but kept for screen readers; the title attr labels it too. */
 			position: absolute;
 			width: 1px;

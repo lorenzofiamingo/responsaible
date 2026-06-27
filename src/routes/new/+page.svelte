@@ -7,6 +7,10 @@
 	import { RISK_CATEGORY, SEVERITY, TRACE_KIND } from '$lib/format';
 	import type { ExtractedDraft } from '$lib/types';
 
+	// The matter this intake is scoped to — resolved server-side from ?matter and
+	// authoritative for the new work product (the create API ignores client matter text).
+	let { data } = $props();
+
 	type Phase = 'intake' | 'analyzing' | 'review';
 	let phase = $state<Phase>('intake');
 
@@ -276,8 +280,9 @@
 			title: draft.title.trim(),
 			summary: draft.summary,
 			body: draft.body,
-			matterName: draft.matterName,
-			matterRef: draft.matterRef,
+			matterId: data.matter.id,
+			matterName: data.matter.name,
+			matterRef: data.matter.ref,
 			agentName: draft.agentName,
 			priority: Number(draft.priority) || 0,
 			confidence: Number(draft.confidence) || 0,
@@ -321,7 +326,9 @@
 </script>
 
 <div class="page">
-<a class="back" href="/"><Icon name="arrow-right" size={14} class="flip" /> Back to queue</a>
+<a class="back" href="/matters/{data.matter.id}"
+	><Icon name="arrow-right" size={14} class="flip" /> Back to {data.matter.name}</a
+>
 
 {#if phase === 'intake'}
 	<header class="hdr">
@@ -495,14 +502,13 @@
 			<input bind:value={draft.title} placeholder="Short title of the work product" />
 		</div>
 
-		<div class="grid2">
-			<div class="field">
-				<span class="lbl">Matter name</span>
-				<input bind:value={draft.matterName} placeholder="Project Borealis — analytics" />
-			</div>
-			<div class="field">
-				<span class="lbl">Matter ref</span>
-				<input bind:value={draft.matterRef} placeholder="MAT-2026-0181" />
+		<div class="field">
+			<span class="lbl">Matter</span>
+			<div class="matter-lock">
+				<Icon name="folder-open" size={15} color="var(--color-accent)" />
+				<span class="ml-name">{data.matter.name}</span>
+				<span class="ml-ref">{data.matter.ref}</span>
+				<a class="ml-change" href="/">Change</a>
 			</div>
 		</div>
 
@@ -978,6 +984,36 @@
 		letter-spacing: 0;
 		font-style: normal;
 		color: var(--text-tertiary);
+	}
+	.matter-lock {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		background: var(--surface-card);
+		border: 1.5px solid var(--border-default);
+		border-left: 3px solid var(--color-accent);
+		border-radius: var(--radius-md);
+		padding: 10px 14px;
+	}
+	.matter-lock .ml-name {
+		font-family: var(--font-display);
+		font-weight: var(--weight-medium);
+		font-size: var(--text-md);
+		color: var(--text-primary);
+	}
+	.matter-lock .ml-ref {
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
+	}
+	.matter-lock .ml-change {
+		margin-left: auto;
+		font-size: var(--text-xs);
+		color: var(--text-link);
+		text-decoration: none;
+	}
+	.matter-lock .ml-change:hover {
+		text-decoration: underline;
 	}
 	input,
 	select,

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import type { FigureTrace, SupervisorInput } from '$lib/types';
 
 // Better Auth tables (user/session/account/verification) — co-located so one
@@ -15,6 +15,29 @@ export * from './auth-schema';
  * audit log. The audit log is the defensible supervisory trail.
  */
 
+/**
+ * A `matter` is a client engagement that organizes work products — the legal
+ * unit of work. Each work product belongs to exactly one matter. `ref` is the
+ * human file reference (e.g. "MAT-2026-0098"); it is unique.
+ */
+export const matter = sqliteTable(
+	'matter',
+	{
+		id: text('id').primaryKey(),
+		ref: text('ref').notNull().default(''),
+		name: text('name').notNull().default(''),
+		client: text('client').notNull().default(''),
+		status: text('status', { enum: ['open', 'closed'] })
+			.notNull()
+			.default('open'),
+		description: text('description').notNull().default(''),
+		createdAt: text('created_at')
+			.notNull()
+			.default(sql`(CURRENT_TIMESTAMP)`)
+	},
+	(t) => [uniqueIndex('matter_ref_idx').on(t.ref), index('matter_status_idx').on(t.status)]
+);
+
 export const workProduct = sqliteTable(
 	'work_product',
 	{
@@ -24,6 +47,12 @@ export const workProduct = sqliteTable(
 		summary: text('summary').notNull().default(''),
 		/** Markdown-ish body. Citation markers like [1] reference `citation.marker`. */
 		body: text('body').notNull().default(''),
+		/** The owning matter (matter.id). No SQL-level FK: SQLite cannot ALTER-ADD a
+		 *  REFERENCES column with a NOT NULL default, and D1 does not enforce FKs —
+		 *  matter existence is enforced in the create API instead. */
+		matterId: text('matter_id').notNull().default(''),
+		/** Denormalized snapshot of the matter's ref/name, captured at insert for the
+		 *  queue rows, document header and offline search (kept in sync at creation). */
 		matterRef: text('matter_ref').notNull().default(''),
 		matterName: text('matter_name').notNull().default(''),
 		/** Which AI agent/pipeline produced it (display label). */
@@ -42,7 +71,11 @@ export const workProduct = sqliteTable(
 			.notNull()
 			.default(sql`(CURRENT_TIMESTAMP)`)
 	},
-	(t) => [index('wp_status_idx').on(t.status), index('wp_priority_idx').on(t.priority)]
+	(t) => [
+		index('wp_status_idx').on(t.status),
+		index('wp_priority_idx').on(t.priority),
+		index('wp_matter_idx').on(t.matterId)
+	]
 );
 
 export const agentAction = sqliteTable(
@@ -282,6 +315,7 @@ export const firmKnowledge = sqliteTable(
 	(t) => [index('fk_category_idx').on(t.category)]
 );
 
+export type Matter = typeof matter.$inferSelect;
 export type WorkProduct = typeof workProduct.$inferSelect;
 export type AgentAction = typeof agentAction.$inferSelect;
 export type Citation = typeof citation.$inferSelect;

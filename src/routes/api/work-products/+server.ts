@@ -1,6 +1,6 @@
 import { CAN_SUBMIT } from '$lib/format';
 import { dbFrom } from '$lib/server/db/client';
-import { createWorkProduct, type NewWorkProductInput } from '$lib/server/db/queries';
+import { createWorkProduct, getMatterHeader, type NewWorkProductInput } from '$lib/server/db/queries';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -37,6 +37,7 @@ function validate(raw: Raw): { ok: true; value: NewWorkProductInput } | { ok: fa
 		title: str(raw.title).trim(),
 		summary: str(raw.summary),
 		body: str(raw.body),
+		matterId: str(raw.matterId),
 		matterRef: str(raw.matterRef),
 		matterName: str(raw.matterName),
 		agentName: str(raw.agentName, 'Itaily Agent'),
@@ -92,6 +93,15 @@ export const POST: RequestHandler = async ({ request, platform, locals }) => {
 	if (!result.ok) return json({ error: result.error }, { status: 400 });
 
 	const db = dbFrom(platform);
+
+	// Work must belong to an existing matter. The matter is authoritative for the
+	// ref/name snapshot, so client-supplied matter text can never forge a grouping.
+	if (!result.value.matterId) return json({ error: 'matterId is required.' }, { status: 400 });
+	const matter = await getMatterHeader(db, result.value.matterId);
+	if (!matter) return json({ error: 'Unknown matter.' }, { status: 400 });
+	result.value.matterRef = matter.ref;
+	result.value.matterName = matter.name;
+
 	const id = await createWorkProduct(db, result.value);
 	return json({ id }, { status: 201 });
 };

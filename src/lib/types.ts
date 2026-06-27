@@ -7,6 +7,8 @@ export interface WorkProduct {
 	title: string;
 	summary: string;
 	body: string;
+	/** The owning matter (FK). matterRef/matterName are a snapshot of it. */
+	matterId: string;
 	matterRef: string;
 	matterName: string;
 	agentName: string;
@@ -15,6 +17,27 @@ export interface WorkProduct {
 	confidence: number;
 	model: string;
 	createdAt: string;
+}
+
+/** A client engagement that organizes work products. */
+export interface Matter {
+	id: string;
+	ref: string;
+	name: string;
+	client: string;
+	status: string;
+	description: string;
+	createdAt: string;
+}
+
+/** A work product augmented with the rollups the queue list and matter detail
+ *  render (see augmentQueue in server/db/queries.ts). */
+export interface QueueRowData extends WorkProduct {
+	risk: { high: number; med: number; low: number; total: number };
+	citationCount: number;
+	assessed: { total: number; analyzed: number; mean: number | null };
+	/** Effective confidence for triage: per-claim mean once assessed, else the prior. */
+	effConfidence: number;
 }
 
 export interface AgentAction {
@@ -104,6 +127,8 @@ export interface ExtractedDraft {
 	body: string;
 	matterName: string;
 	matterRef: string;
+	/** Set when intake is scoped to a matter (?matter=…); the matter is then authoritative. */
+	matterId?: string;
 	agentName: string;
 	priority: number;
 	confidence: number;
