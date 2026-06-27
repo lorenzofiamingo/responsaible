@@ -4,8 +4,9 @@ import { user as userTable } from './db/auth-schema';
 import { getDb } from './db/client';
 
 /**
- * Demo accounts for fast role-switching. Passwords are intentionally trivial —
- * this is a demo of a fictitious firm, not a production system.
+ * Demo account for the supervising lawyer — the only role. Passwords are
+ * intentionally trivial — this is a demo of a fictitious firm, not a production
+ * system.
  */
 export const DEMO_USERS = [
 	{
@@ -13,18 +14,6 @@ export const DEMO_USERS = [
 		name: 'Giulia Romano',
 		password: 'demo1234',
 		role: 'supervisor'
-	},
-	{
-		email: 'm.bianchi@romanopartners.it',
-		name: 'Marco Bianchi',
-		password: 'demo1234',
-		role: 'operator'
-	},
-	{
-		email: 'studio.admin@romanopartners.it',
-		name: 'Studio Admin',
-		password: 'demo1234',
-		role: 'admin'
 	}
 ];
 

@@ -2,9 +2,10 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 /**
  * Better Auth core tables (user / session / account / verification).
- * The `role` column on `user` is our custom additionalField (operator | supervisor
- * | admin) — set server-side, never by the client. Email/password hash lives in
- * `account.password`. Names are singular to match Better Auth defaults.
+ * The `role` column on `user` is our custom additionalField — a single role,
+ * `supervisor` (the supervising lawyer) — set server-side, never by the client.
+ * Email/password hash lives in `account.password`. Names are singular to match
+ * Better Auth defaults.
  */
 
 export const user = sqliteTable('user', {
@@ -13,7 +14,7 @@ export const user = sqliteTable('user', {
 	email: text('email').notNull().unique(),
 	emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
 	image: text('image'),
-	role: text('role').notNull().default('operator'),
+	role: text('role').notNull().default('supervisor'),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 	updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull()
 });

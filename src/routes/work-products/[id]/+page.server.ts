@@ -1,4 +1,4 @@
-import { REASON_REQUIRED } from '$lib/format';
+import { CAN_SUPERVISE, REASON_REQUIRED } from '$lib/format';
 import { computeHash } from '$lib/server/audit';
 import { dbFrom } from '$lib/server/db/client';
 import { getClaims, getLastHash, getWorkProduct } from '$lib/server/db/queries';
@@ -39,7 +39,7 @@ export const load: PageServerLoad = async ({ params, platform, locals }) => {
 
 export const actions: Actions = {
 	act: async ({ request, params, platform, locals }) => {
-		if (!locals.user || !['supervisor', 'admin'].includes(locals.user.role)) {
+		if (!locals.user || !CAN_SUPERVISE.has(locals.user.role)) {
 			return fail(403, {
 				error: 'Only a supervising lawyer can record supervisory actions.',
 				action: ''
