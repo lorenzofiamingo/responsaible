@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import Icon from '$lib/components/Icon.svelte';
 	import ClaimDetail from '$lib/components/workarea/ClaimDetail.svelte';
+	import ClaimGraph from '$lib/components/workarea/ClaimGraph.svelte';
 	import ClaimList from '$lib/components/workarea/ClaimList.svelte';
 	import ClaimText from '$lib/components/workarea/ClaimText.svelte';
 	import RunControls from '$lib/components/workarea/RunControls.svelte';
@@ -50,6 +51,7 @@
 
 	// --- work-group selection ---
 	let applyAll = $state(false);
+	let midView = $state<'list' | 'graph'>('graph');
 	let globalGroup = $state<WorkGroup>(PRESETS[DEFAULT_PRESET]);
 	let overrideById = $state<Record<string, WorkGroup>>({});
 
@@ -195,8 +197,25 @@
 			</section>
 
 			<section class="panel col-mid">
-				<h3 class="ptitle"><Icon name="list-checks" size={15} /> Claims <span class="count">{data.claims.length}</span></h3>
+				<h3 class="ptitle">
+					<Icon name="list-checks" size={15} /> Claims <span class="count">{data.claims.length}</span>
+					<div class="seg" role="tablist" aria-label="Claims view">
+						<button type="button" role="tab" aria-selected={midView === 'list'} class:on={midView === 'list'} onclick={() => (midView = 'list')}>List</button>
+						<button type="button" role="tab" aria-selected={midView === 'graph'} class:on={midView === 'graph'} onclick={() => (midView = 'graph')}>Graph</button>
+					</div>
+				</h3>
 				<div class="scroll">
+					{#if midView === 'graph'}
+					<ClaimGraph
+						claims={data.claims}
+						edges={data.edges}
+						{graph}
+						{statusById}
+						{resultById}
+						{selectedId}
+						onSelect={selectClaim}
+					/>
+					{:else}
 					<ClaimList
 						claims={data.claims}
 						{selectedId}
@@ -207,6 +226,7 @@
 						onSelect={selectClaim}
 						onRun={runOne}
 					/>
+					{/if}
 				</div>
 			</section>
 
@@ -283,7 +303,7 @@
 		margin: 0 0 var(--space-3);
 	}
 	.ptitle .count {
-		margin-left: auto;
+		margin-left: 0;
 		font-family: var(--font-mono);
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
@@ -328,5 +348,28 @@
 		.cols {
 			grid-template-columns: 1fr;
 		}
+	}
+	.seg {
+		margin-left: auto;
+		display: inline-flex;
+		gap: 2px;
+		padding: 2px;
+		background: var(--surface-sunken);
+		border-radius: var(--radius-sm);
+	}
+	.seg button {
+		font-family: var(--font-display);
+		font-size: var(--text-xs);
+		padding: 3px 10px;
+		border: none;
+		background: transparent;
+		color: var(--text-tertiary);
+		border-radius: calc(var(--radius-sm) - 2px);
+		cursor: pointer;
+	}
+	.seg button.on {
+		background: var(--surface-card);
+		color: var(--text-primary);
+		box-shadow: var(--shadow-sm);
 	}
 </style>

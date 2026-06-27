@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ClaimGraphInfo } from '$lib/claim-graph';
+	import { claimTone, type ClaimGraphInfo } from '$lib/claim-graph';
 	import type { AtomicClaim, ClaimRunResult } from '$lib/types';
 
 	let {
@@ -36,20 +36,7 @@
 	});
 
 	function tone(id: string): string {
-		if (statusById[id] === 'running') return 'running';
-		if (statusById[id] !== 'analyzed') return 'pending';
-		const r = resultById[id];
-		if (!r) return 'pending';
-		let t = 'ok';
-		if (r.verdict === 'unsupported' || r.verdict === 'flag' || r.riskSeverity === 'high') t = 'high';
-		else if (r.riskSeverity === 'med' || r.verdict === 'weak') t = 'med';
-		// A claim that looks fine on its own but rests on a weaker premise is risky too.
-		const g = graph?.get(id);
-		if (g?.undermined) {
-			if (g.inheritedVerdict === 'unsupported' || g.inheritedVerdict === 'flag') t = 'high';
-			else if (t === 'ok') t = 'med';
-		}
-		return t;
+		return claimTone(statusById[id] ?? 'pending', resultById[id], graph?.get(id));
 	}
 
 	function isLoadBearing(id: string): boolean {

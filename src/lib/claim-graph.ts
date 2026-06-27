@@ -143,3 +143,23 @@ export function buildClaimGraph(
 
 	return out;
 }
+
+/** Verdict/risk → highlight tone, escalated when a claim is undermined by a premise. */
+export type ClaimTone = 'pending' | 'running' | 'ok' | 'med' | 'high';
+
+export function claimTone(
+	status: string,
+	result: { verdict: string | null; riskSeverity: string | null } | undefined,
+	info?: ClaimGraphInfo | null
+): ClaimTone {
+	if (status === 'running') return 'running';
+	if (status !== 'analyzed' || !result) return 'pending';
+	let t: ClaimTone = 'ok';
+	if (result.verdict === 'unsupported' || result.verdict === 'flag' || result.riskSeverity === 'high') t = 'high';
+	else if (result.riskSeverity === 'med' || result.verdict === 'weak') t = 'med';
+	if (info?.undermined) {
+		if (info.inheritedVerdict === 'unsupported' || info.inheritedVerdict === 'flag') t = 'high';
+		else if (t === 'ok') t = 'med';
+	}
+	return t;
+}
