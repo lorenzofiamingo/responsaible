@@ -1,6 +1,6 @@
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import { GENESIS_HASH } from '../audit';
-import { deriveClaims } from '../claims';
+import { deriveClaims, deriveEdges } from '../claims';
 import type { DB } from './client';
 import {
 	agentAction,
@@ -320,7 +320,8 @@ export async function createWorkProduct(db: DB, input: NewWorkProductInput): Pro
 	// analysis, the SAME way the offline seed does (scripts/load-seed.mjs). Without
 	// this the document is ingested with zero claims and the workspace is empty:
 	// the per-claim run reveals each claim's baseline as its offline fallback.
-	for (const c of deriveClaims(input)) {
+	const claims = deriveClaims(input);
+	for (const c of claims) {
 		const a = c.analysis;
 		stmts.push(
 			db.insert(atomicClaim).values({
@@ -349,6 +350,24 @@ export async function createWorkProduct(db: DB, input: NewWorkProductInput): Pro
 			})
 		);
 	}
+
+	// Typed reasoning-graph edges between those claims — the runtime stand-in for the
+	// offline ADK claim_grapher (see deriveEdges + scripts/load-seed.mjs). Without these
+	// the workspace graph is a flat row of isolated nodes with no risk propagation.
+	deriveEdges(claims).forEach((e, i) => {
+		stmts.push(
+			db.insert(claimEdge).values({
+				id: `${id}_edge${i}`,
+				workProductId: id,
+				fromClaimId: `${id}_claim${e.fromIdx}`,
+				toClaimId: `${id}_claim${e.toIdx}`,
+				relation: e.relation,
+				rationale: e.rationale,
+				ordering: e.ordering,
+				createdAt
+			})
+		);
+	});
 
 	await db.batch(stmts as unknown as Parameters<typeof db.batch>[0]);
 	return id;

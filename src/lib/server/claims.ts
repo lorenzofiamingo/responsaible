@@ -11,6 +11,10 @@
  * and the seeded path in /api/work-products/[id]/analyze), so a freshly ingested
  * document behaves exactly like a seeded one offline.
  *
+ * `deriveEdges` then builds the reasoning-graph edges between those claims — the
+ * deterministic runtime stand-in for the offline ADK `claim_grapher`, so an ingested
+ * document gets a real dependency graph (and risk propagation) instead of isolated nodes.
+ *
  * This MUST stay in step with `deriveClaims`/`splitSentences`/`classifyKind`/
  * `baselineAnalysis` in scripts/load-seed.mjs so seeded and live-ingested documents
  * split identically. Preset assignment reuses `autoPreset` from $lib/workgroups —
@@ -18,6 +22,7 @@
  */
 
 import { autoPreset } from '$lib/workgroups';
+import type { ClaimRelation } from '$lib/types';
 
 /** The `atomic_claim.kind` enum the splitter emits (subset of the schema enum). */
 export type ClaimKind = 'citation_ref' | 'obligation' | 'boilerplate' | 'assertion';
@@ -173,4 +178,97 @@ export function deriveClaims(input: DeriveClaimsInput): DerivedClaim[] {
 			analysis: baselineAnalysis(input, s.text, markers, idx)
 		};
 	});
+}
+
+/** A typed reasoning-graph edge between two derived claims (by idx). `from` RESTS ON `to`. */
+export interface DerivedEdge {
+	fromIdx: number;
+	toIdx: number;
+	relation: ClaimRelation;
+	rationale: string;
+	/** True for the ordering family (premise/definition/elaboration) that propagates risk. */
+	ordering: boolean;
+}
+
+/** The ordering (risk-propagating) relations — mirrors ORDERING_RELATIONS in claim-graph.ts. */
+const ORDERING_RELATIONS = new Set<ClaimRelation>(['premise', 'definition', 'elaboration']);
+
+/** A claim that GROUNDS others: it invokes a cited authority (an inline `[n]` marker). */
+function isFoundation(c: DerivedClaim): boolean {
+	return c.kind === 'citation_ref' || c.citationMarkers.length > 0;
+}
+
+/**
+ * Derive the reasoning-graph edges for a live-ingested work product — the deterministic
+ * runtime stand-in for the offline ADK `claim_grapher` (which produces the authored
+ * `edges` the seed loads, see scripts/load-seed.mjs). Live ingestion has no LLM grapher,
+ * so the structure is inferred from claim kinds + citation anchoring:
+ *
+ *   - Each non-boilerplate claim WITHOUT its own citation rests (`premise`) on the
+ *     nearest claim that DOES cite an authority — "this prose stands on that authority".
+ *   - Each cited-authority claim after the first builds (`elaboration`) on the previous
+ *     one, giving the argument a backbone so risk propagates transitively.
+ *
+ * Every edge points to an earlier-or-foundation claim, so the graph is a DAG. Without
+ * this a freshly ingested document would have nodes but no edges: a flat row of isolated
+ * claims with no risk propagation (the undermined-by-a-premise signal in claim-graph.ts).
+ */
+export function deriveEdges(claims: DerivedClaim[]): DerivedEdge[] {
+	const foundations = claims.filter(isFoundation).map((c) => c.idx);
+	if (!foundations.length) return [];
+	const foundationSet = new Set(foundations);
+
+	// Nearest foundation to a claim, preferring the closest PRECEDING one on a tie.
+	function nearestFoundation(idx: number): number | null {
+		let best: number | null = null;
+		let bestDist = Infinity;
+		for (const f of foundations) {
+			if (f === idx) continue;
+			const dist = idx - f >= 0 ? idx - f : f - idx + 0.5;
+			if (dist < bestDist) {
+				bestDist = dist;
+				best = f;
+			}
+		}
+		return best;
+	}
+
+	// Closest foundation strictly before `idx` (foundations is ascending).
+	function prevFoundation(idx: number): number | null {
+		let prev: number | null = null;
+		for (const f of foundations) {
+			if (f < idx) prev = f;
+			else break;
+		}
+		return prev;
+	}
+
+	const edges: DerivedEdge[] = [];
+	for (const c of claims) {
+		if (c.kind === 'boilerplate') continue;
+		if (foundationSet.has(c.idx)) {
+			const prev = prevFoundation(c.idx);
+			if (prev != null) {
+				edges.push({
+					fromIdx: c.idx,
+					toIdx: prev,
+					relation: 'elaboration',
+					rationale: `Develops the argument from the authority cited in claim ${prev + 1}.`,
+					ordering: ORDERING_RELATIONS.has('elaboration')
+				});
+			}
+		} else {
+			const f = nearestFoundation(c.idx);
+			if (f != null) {
+				edges.push({
+					fromIdx: c.idx,
+					toIdx: f,
+					relation: 'premise',
+					rationale: `Rests on the authority cited in claim ${f + 1}.`,
+					ordering: ORDERING_RELATIONS.has('premise')
+				});
+			}
+		}
+	}
+	return edges;
 }
