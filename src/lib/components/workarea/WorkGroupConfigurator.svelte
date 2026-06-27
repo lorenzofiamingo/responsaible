@@ -346,7 +346,7 @@
 	}
 	.frow {
 		display: grid;
-		grid-template-columns: 116px 1fr auto 26px;
+		grid-template-columns: 132px 1fr auto 26px;
 		align-items: center;
 		gap: 8px;
 	}
@@ -595,6 +595,6 @@
 		color: var(--color-accent-active);
 	}
 	.compact .frow {
-		grid-template-columns: 100px 1fr auto 24px;
+		grid-template-columns: 116px 1fr auto 24px;
 	}
 </style>
