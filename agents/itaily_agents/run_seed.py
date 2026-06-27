@@ -318,6 +318,40 @@ def build_claims(
     return claims
 
 
+_EDGE_RELATIONS = {"premise", "definition", "elaboration", "qualification", "conflict"}
+_ORDERING_RELATIONS = {"premise", "definition", "elaboration"}
+
+
+def build_edges(edges_raw: list[dict[str, Any]], n_claims: int) -> list[dict[str, Any]]:
+    """Validate the claim-grapher's edges into the loader shape.
+
+    `from` (the dependent) RESTS ON `to` (the premise/target). Drop anything with an
+    unknown relation, an out-of-range claim idx, or a self-loop, and stamp `ordering`
+    (the risk-propagating premise/definition/elaboration family).
+    """
+    out: list[dict[str, Any]] = []
+    for e in edges_raw or []:
+        rel = e.get("relation")
+        if rel not in _EDGE_RELATIONS:
+            continue
+        try:
+            frm, to = int(e.get("from")), int(e.get("to"))
+        except (TypeError, ValueError):
+            continue
+        if frm == to or not (0 <= frm < n_claims) or not (0 <= to < n_claims):
+            continue
+        out.append(
+            {
+                "from": frm,
+                "to": to,
+                "relation": rel,
+                "rationale": e.get("rationale", ""),
+                "ordering": rel in _ORDERING_RELATIONS,
+            }
+        )
+    return out
+
+
 def assemble_work_product(
     matter: SeedMatter,
     draft: dict[str, Any],
@@ -325,6 +359,7 @@ def assemble_work_product(
     trace: list[dict[str, Any]],
     created_at: str,
     claims: list[dict[str, Any]] | None = None,
+    edges: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build the final work-product object in the EXACT shape the app loads."""
     wp_type = draft.get("type") or matter.expected_type
@@ -375,6 +410,7 @@ def assemble_work_product(
         "citations": citations,
         "riskSignals": risk_signals,
         "claims": claims or [],
+        "edges": edges or [],
     }
 
 
@@ -397,6 +433,7 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
 
     from .pipeline import (
         CLAIM_ANALYSES_OUTPUT_KEY,
+        CLAIM_EDGES_OUTPUT_KEY,
         CLAIMS_OUTPUT_KEY,
         CRITIC_OUTPUT_KEY,
         DRAFT_OUTPUT_KEY,
@@ -436,10 +473,14 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
     critique = _parse_json_blob(state.get(CRITIC_OUTPUT_KEY, ""))
     claims_raw = _parse_json_blob(state.get(CLAIMS_OUTPUT_KEY, "")).get("claims", [])
     analyses_raw = _parse_json_blob(state.get(CLAIM_ANALYSES_OUTPUT_KEY, "")).get("analyses", [])
+    edges_raw = _parse_json_blob(state.get(CLAIM_EDGES_OUTPUT_KEY, "")).get("edges", [])
     claims = build_claims(claims_raw, analyses_raw, draft.get("body", ""))
+    edges = build_edges(edges_raw, len(claims))
 
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return assemble_work_product(matter, draft, critique, builder.steps, created_at, claims)
+    return assemble_work_product(
+        matter, draft, critique, builder.steps, created_at, claims, edges
+    )
 
 
 # --- dry-run fixture (offline, no ADK / no network) -------------------------------
@@ -509,6 +550,7 @@ def dry_run_product(matter: SeedMatter) -> dict[str, Any]:
         ],
         "riskSignals": [],
         "claims": claims,
+        "edges": [],
     }
 
 

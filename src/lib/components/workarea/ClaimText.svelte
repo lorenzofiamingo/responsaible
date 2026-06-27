@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ClaimGraphInfo } from '$lib/claim-graph';
 	import type { AtomicClaim, ClaimRunResult } from '$lib/types';
 
 	let {
@@ -7,6 +8,7 @@
 		selectedId,
 		statusById,
 		resultById,
+		graph,
 		onSelect
 	}: {
 		body: string;
@@ -14,6 +16,7 @@
 		selectedId: string | null;
 		statusById: Record<string, string>;
 		resultById: Record<string, ClaimRunResult>;
+		graph?: Map<string, ClaimGraphInfo>;
 		onSelect: (id: string) => void;
 	} = $props();
 
@@ -37,9 +40,20 @@
 		if (statusById[id] !== 'analyzed') return 'pending';
 		const r = resultById[id];
 		if (!r) return 'pending';
-		if (r.verdict === 'unsupported' || r.verdict === 'flag' || r.riskSeverity === 'high') return 'high';
-		if (r.riskSeverity === 'med' || r.verdict === 'weak') return 'med';
-		return 'ok';
+		let t = 'ok';
+		if (r.verdict === 'unsupported' || r.verdict === 'flag' || r.riskSeverity === 'high') t = 'high';
+		else if (r.riskSeverity === 'med' || r.verdict === 'weak') t = 'med';
+		// A claim that looks fine on its own but rests on a weaker premise is risky too.
+		const g = graph?.get(id);
+		if (g?.undermined) {
+			if (g.inheritedVerdict === 'unsupported' || g.inheritedVerdict === 'flag') t = 'high';
+			else if (t === 'ok') t = 'med';
+		}
+		return t;
+	}
+
+	function isLoadBearing(id: string): boolean {
+		return graph?.get(id)?.loadBearing ?? false;
 	}
 </script>
 
@@ -49,8 +63,9 @@
 				type="button"
 				class="atom tone-{tone(seg.claim.id)}"
 				class:sel={selectedId === seg.claim.id}
+				class:bearing={isLoadBearing(seg.claim.id)}
 				onclick={() => onSelect(seg.claim.id)}
-				title="Claim {seg.claim.idx + 1}">{seg.text}</button
+				title="Claim {seg.claim.idx + 1}{isLoadBearing(seg.claim.id) ? ' · load-bearing' : ''}">{seg.text}</button
 			>{/if}
 	{/each}
 </div>
@@ -78,6 +93,10 @@
 	}
 	.atom:hover {
 		background: var(--atom-hover, var(--surface-sunken));
+	}
+	/* Foundational claims others rest on get a thicker underline. */
+	.atom.bearing {
+		box-shadow: inset 0 -3px 0 var(--atom-line, var(--border-strong));
 	}
 	.tone-pending {
 		--atom-line: var(--border-strong);

@@ -179,6 +179,48 @@ export const atomicClaim = sqliteTable(
 );
 
 /**
+ * Typed dependency / consistency edges between atomic claims — the reasoning graph
+ * the claim-grapher ADK agent builds after the splitter. Two families:
+ *   - ORDERING (premise | definition | elaboration): directed, acyclic. `from`
+ *     RESTS ON `to`; a weak/unsupported `to` propagates risk up to `from`
+ *     (a conclusion can't be more reliable than the premise it stands on).
+ *   - LATERAL (qualification | conflict): not part of the ordering; surfaced to the
+ *     supervisor for consistency review (a caveat that narrows a claim, or a
+ *     potential contradiction). `is_ordering` records which family an edge is in.
+ *
+ * Risk propagation itself is computed client-side from these edges + the live
+ * per-claim results (see src/lib/claim-graph.ts), so the runtime analyzer stays
+ * per-claim and the graph reacts as each claim is analyzed.
+ */
+export const claimEdge = sqliteTable(
+	'claim_edge',
+	{
+		id: text('id').primaryKey(),
+		workProductId: text('work_product_id')
+			.notNull()
+			.references(() => workProduct.id),
+		/** The DEPENDENT claim (rests on `toClaimId`). */
+		fromClaimId: text('from_claim_id')
+			.notNull()
+			.references(() => atomicClaim.id),
+		/** The claim depended upon (the premise / target). */
+		toClaimId: text('to_claim_id')
+			.notNull()
+			.references(() => atomicClaim.id),
+		relation: text('relation', {
+			enum: ['premise', 'definition', 'elaboration', 'qualification', 'conflict']
+		}).notNull(),
+		rationale: text('rationale').notNull().default(''),
+		/** True for the ordering family (premise/definition/elaboration) that propagates risk. */
+		ordering: integer('is_ordering', { mode: 'boolean' }).notNull().default(true),
+		createdAt: text('created_at')
+			.notNull()
+			.default(sql`(CURRENT_TIMESTAMP)`)
+	},
+	(t) => [index('edge_wp_idx').on(t.workProductId), index('edge_from_idx').on(t.fromClaimId)]
+);
+
+/**
  * The audit log — INSERT-ONLY. Never UPDATE or DELETE these rows.
  * Each row is hash-chained: hash = sha256(prevHash + workProductId + actorEmail +
  * action + reason + createdAt). `/api/audit/verify` recomputes the chain to prove
@@ -208,4 +250,5 @@ export type AgentAction = typeof agentAction.$inferSelect;
 export type Citation = typeof citation.$inferSelect;
 export type RiskSignal = typeof riskSignal.$inferSelect;
 export type AtomicClaim = typeof atomicClaim.$inferSelect;
+export type ClaimEdge = typeof claimEdge.$inferSelect;
 export type SupervisoryAction = typeof supervisoryAction.$inferSelect;

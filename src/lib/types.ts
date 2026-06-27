@@ -161,6 +161,24 @@ export interface AtomicClaim {
 	createdAt: string;
 }
 
+/** How one atomic claim relates to another in the reasoning graph. */
+export type ClaimRelation = 'premise' | 'definition' | 'elaboration' | 'qualification' | 'conflict';
+
+/** A typed edge between two atomic claims. `from` RESTS ON `to`. */
+export interface ClaimEdge {
+	id: string;
+	workProductId: string;
+	/** The dependent claim. */
+	fromClaimId: string;
+	/** The claim depended upon (premise / target). */
+	toClaimId: string;
+	relation: ClaimRelation;
+	rationale: string;
+	/** True for the ordering family (premise/definition/elaboration) that propagates risk. */
+	ordering: boolean;
+	createdAt: string;
+}
+
 /** The per-claim result returned by POST /api/work-products/[id]/analyze. */
 export interface ClaimRunResult {
 	claimId: string;

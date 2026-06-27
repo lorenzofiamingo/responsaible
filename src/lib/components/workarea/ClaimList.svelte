@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ClaimGraphInfo } from '$lib/claim-graph';
 	import type { AtomicClaim, ClaimRunResult } from '$lib/types';
 	import ClaimCard from './ClaimCard.svelte';
 
@@ -7,6 +8,7 @@
 		selectedId,
 		statusById,
 		resultById,
+		graph,
 		groupLabelFor,
 		onSelect,
 		onRun
@@ -15,6 +17,7 @@
 		selectedId: string | null;
 		statusById: Record<string, string>;
 		resultById: Record<string, ClaimRunResult>;
+		graph?: Map<string, ClaimGraphInfo>;
 		groupLabelFor: (claim: AtomicClaim) => string;
 		onSelect: (id: string) => void;
 		onRun: (id: string) => void;
@@ -29,6 +32,7 @@
 				selected={selectedId === claim.id}
 				status={statusById[claim.id] ?? 'pending'}
 				result={resultById[claim.id]}
+				info={graph?.get(claim.id)}
 				groupLabel={groupLabelFor(claim)}
 				onSelect={() => onSelect(claim.id)}
 				onRun={() => onRun(claim.id)}

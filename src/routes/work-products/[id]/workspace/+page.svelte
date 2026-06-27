@@ -5,6 +5,7 @@
 	import ClaimList from '$lib/components/workarea/ClaimList.svelte';
 	import ClaimText from '$lib/components/workarea/ClaimText.svelte';
 	import RunControls from '$lib/components/workarea/RunControls.svelte';
+	import { buildClaimGraph } from '$lib/claim-graph';
 	import { CAN_SUPERVISE, ROLE } from '$lib/format';
 	import { DEFAULT_PRESET, PRESETS, type PresetId, type WorkGroup } from '$lib/workgroups';
 	import type { AtomicClaim, ClaimRunResult } from '$lib/types';
@@ -63,6 +64,13 @@
 	);
 	const selectedClaim = $derived(data.claims.find((c) => c.id === selectedId) ?? null);
 	const selectedGroup = $derived(selectedClaim ? groupFor(selectedClaim) : globalGroup);
+
+	// --- reasoning graph (derived; recomputes as claims get analyzed) ---
+	const claimById = $derived(
+		Object.fromEntries(data.claims.map((c) => [c.id, c])) as Record<string, AtomicClaim>
+	);
+	const graph = $derived(buildClaimGraph(data.claims, data.edges, resultById));
+	const selectedInfo = $derived(selectedId ? (graph.get(selectedId) ?? null) : null);
 
 	function selectClaim(id: string) {
 		selectedId = id;
@@ -181,6 +189,7 @@
 					{selectedId}
 					{statusById}
 					{resultById}
+						{graph}
 					onSelect={selectClaim}
 				/>
 			</section>
@@ -193,6 +202,7 @@
 						{selectedId}
 						{statusById}
 						{resultById}
+						{graph}
 						groupLabelFor={(c) => groupFor(c).label}
 						onSelect={selectClaim}
 						onRun={runOne}
@@ -209,6 +219,10 @@
 						result={selectedId ? resultById[selectedId] : undefined}
 						group={selectedGroup}
 						citations={data.citations}
+						info={selectedInfo}
+						{claimById}
+						{resultById}
+						onSelectClaim={selectClaim}
 						onGroupChange={setGroupForSelected}
 						onRun={() => selectedId && runOne(selectedId)}
 					/>

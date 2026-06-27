@@ -5,6 +5,7 @@ import {
 	agentAction,
 	atomicClaim,
 	citation,
+	claimEdge,
 	riskSignal,
 	supervisoryAction,
 	workProduct
@@ -65,6 +66,11 @@ export async function getClaims(db: DB, workProductId: string) {
 /** One claim by id (the analyze endpoint's seeded-fallback read). */
 export async function getClaim(db: DB, claimId: string) {
 	return db.select().from(atomicClaim).where(eq(atomicClaim.id, claimId)).get();
+}
+
+/** The typed reasoning-graph edges between a work product's atomic claims. */
+export async function getClaimEdges(db: DB, workProductId: string) {
+	return db.select().from(claimEdge).where(eq(claimEdge.workProductId, workProductId)).all();
 }
 
 /** Fields written back to a claim after a (live or seeded-fallback) run. */

@@ -4,9 +4,10 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import RiskBadge from '$lib/components/RiskBadge.svelte';
 	import SourceCard from '$lib/components/SourceCard.svelte';
-	import { CLAIM_KIND, TRACE_KIND, VERDICT } from '$lib/format';
+	import type { ClaimGraphInfo } from '$lib/claim-graph';
+	import { CLAIM_KIND, CLAIM_RELATION, TRACE_KIND, VERDICT } from '$lib/format';
 	import { FIGURE_ROLE, MODELS, type WorkGroup } from '$lib/workgroups';
-	import type { AtomicClaim, Citation, ClaimRunResult } from '$lib/types';
+	import type { AtomicClaim, Citation, ClaimEdge, ClaimRunResult } from '$lib/types';
 	import WorkGroupConfigurator from './WorkGroupConfigurator.svelte';
 
 	let {
@@ -15,6 +16,10 @@
 		result,
 		group,
 		citations,
+		info,
+		claimById,
+		resultById,
+		onSelectClaim,
 		onGroupChange,
 		onRun
 	}: {
@@ -23,6 +28,10 @@
 		result: ClaimRunResult | undefined;
 		group: WorkGroup;
 		citations: Citation[];
+		info?: ClaimGraphInfo | null;
+		claimById?: Record<string, AtomicClaim>;
+		resultById?: Record<string, ClaimRunResult>;
+		onSelectClaim?: (id: string) => void;
 		onGroupChange: (wg: WorkGroup) => void;
 		onRun: () => void;
 	} = $props();
@@ -32,6 +41,22 @@
 	const claimCitations = $derived(
 		citations.filter((c) => c.marker != null && markers.includes(c.marker))
 	);
+
+	const weakest = $derived(
+		info?.weakestPremiseId ? (claimById?.[info.weakestPremiseId] ?? null) : null
+	);
+	const hasRelations = $derived(
+		!!info &&
+			(info.dependsOn.length ||
+				info.supports.length ||
+				info.qualifiedBy.length ||
+				info.qualifies.length ||
+				info.conflicts.length) > 0
+	);
+
+	function verdictLabel(v: string | null | undefined): string {
+		return v && VERDICT[v] ? VERDICT[v].label.toLowerCase() : 'a weaker';
+	}
 </script>
 
 {#if !claim}
@@ -41,6 +66,11 @@
 		<div class="head">
 			<span class="idx">Claim {claim.idx + 1}</span>
 			{#if kind}<span class="kind"><Icon name={kind.icon} size={12} /> {kind.label}</span>{/if}
+			{#if info?.loadBearing}
+				<span class="bearing" title="{info.dependentCount} claims rest on this one">
+					<Icon name="git-branch" size={11} /> load-bearing
+				</span>
+			{/if}
 		</div>
 
 		<blockquote class="text">{claim.text}</blockquote>
@@ -62,6 +92,24 @@
 						{result.analysisSource === 'live' ? 'live' : 'baseline'}
 					</span>
 				</div>
+
+				{#if info?.undermined}
+					<button
+						type="button"
+						class="undermined"
+						onclick={() => info?.weakestPremiseId && onSelectClaim?.(info.weakestPremiseId)}
+					>
+						<Icon name="triangle-alert" size={15} />
+						<span class="ubody">
+							<strong>Undermined by a premise.</strong>
+							This claim reads {verdictLabel(result.verdict)} on its own, but it rests on a premise
+							judged {verdictLabel(info.inheritedVerdict)}{#if weakest}{' — “'}{weakest.text}{'”'}{/if}.
+							{#if info.effectiveConfidence != null}
+								<span class="eff">Effective confidence, weakest link: {Math.round(info.effectiveConfidence * 100)}%</span>
+							{/if}
+						</span>
+					</button>
+				{/if}
 
 				{#if result.analysisSummary}<p class="summary">{result.analysisSummary}</p>{/if}
 
@@ -103,6 +151,49 @@
 			</div>
 		{:else}
 			<p class="hint">Not analyzed yet. Choose a work group below and run it against this claim.</p>
+		{/if}
+
+		{#snippet relList(title: string, icon: string, edges: ClaimEdge[], otherOf: (e: ClaimEdge) => string)}
+			{#if edges.length}
+				<div class="rel-group">
+					<h5><Icon name={icon} size={12} /> {title}</h5>
+					{#each edges as e (e.id)}
+						{@const oid = otherOf(e)}
+						{@const oc = claimById?.[oid]}
+						{@const orr = resultById?.[oid]}
+						<button type="button" class="rel" onclick={() => onSelectClaim?.(oid)}>
+							<div class="rel-head">
+								<span class="rel-kind">{CLAIM_RELATION[e.relation]?.label ?? e.relation}</span>
+								{#if oc}<span class="rel-idx">Claim {oc.idx + 1}</span>{/if}
+								{#if orr?.verdict}
+									<Badge tone={VERDICT[orr.verdict]?.tone ?? 'neutral'}>
+										<Icon name={VERDICT[orr.verdict]?.icon ?? 'circle-check'} size={10} />
+										{VERDICT[orr.verdict]?.label}
+									</Badge>
+								{/if}
+							</div>
+							{#if oc}<p class="rel-text">{oc.text}</p>{/if}
+							{#if e.rationale}<p class="rel-why">{e.rationale}</p>{/if}
+						</button>
+					{/each}
+				</div>
+			{/if}
+		{/snippet}
+
+		{#if hasRelations && info}
+			<div class="block relations">
+				<h4><Icon name="git-fork" size={13} /> Reasoning dependencies</h4>
+				{@render relList('Rests on', 'arrow-up-right', info.dependsOn, (e) => e.toClaimId)}
+				{@render relList('Relied on by', 'git-branch', info.supports, (e) => e.fromClaimId)}
+				{@render relList('Qualified by', 'git-fork', info.qualifiedBy, (e) => e.fromClaimId)}
+				{@render relList('Qualifies', 'git-fork', info.qualifies, (e) => e.toClaimId)}
+				{@render relList(
+					'Potential conflict',
+					'triangle-alert',
+					info.conflicts,
+					(e) => (e.fromClaimId === claim.id ? e.toClaimId : e.fromClaimId)
+				)}
+			</div>
 		{/if}
 
 		<div class="block configurator">
@@ -148,6 +239,16 @@
 		letter-spacing: var(--tracking-wide);
 		color: var(--text-tertiary);
 	}
+	.bearing {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin-left: auto;
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-accent-active);
+	}
 	.text {
 		margin: 0;
 		padding: 10px 14px;
@@ -185,6 +286,34 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		color: var(--text-tertiary);
+	}
+	.undermined {
+		display: flex;
+		gap: 10px;
+		align-items: flex-start;
+		width: 100%;
+		text-align: left;
+		padding: 11px 13px;
+		background: var(--status-danger-bg);
+		border: 1.5px solid var(--status-danger-fg);
+		border-radius: var(--radius-md);
+		color: var(--status-danger-fg);
+		cursor: pointer;
+	}
+	.ubody {
+		font-size: var(--text-sm);
+		line-height: var(--leading-normal);
+		color: var(--text-secondary);
+	}
+	.ubody strong {
+		color: var(--status-danger-fg);
+	}
+	.eff {
+		display: block;
+		margin-top: 4px;
 		font-family: var(--font-mono);
 		font-size: 10px;
 		color: var(--text-tertiary);
@@ -265,6 +394,77 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
+	}
+	.relations {
+		padding-top: var(--space-4);
+		border-top: 1.5px solid var(--border-subtle);
+		gap: var(--space-3);
+	}
+	.rel-group {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.rel-group h5 {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		margin: 2px 0 0;
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--text-tertiary);
+		font-weight: var(--weight-medium);
+	}
+	.rel {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		width: 100%;
+		text-align: left;
+		padding: 8px 10px;
+		background: var(--surface-sunken);
+		border: 1.5px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		transition: border-color var(--duration-fast) var(--ease-out);
+	}
+	.rel:hover {
+		border-color: var(--color-accent);
+	}
+	.rel-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+	.rel-kind {
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-accent-active);
+	}
+	.rel-idx {
+		font-family: var(--font-mono);
+		font-size: 10px;
+		color: var(--text-tertiary);
+	}
+	.rel-text {
+		margin: 0;
+		font-size: var(--text-xs);
+		line-height: var(--leading-snug);
+		color: var(--text-primary);
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+	.rel-why {
+		margin: 0;
+		font-size: 11px;
+		line-height: var(--leading-snug);
+		color: var(--text-tertiary);
 	}
 	.hint {
 		margin: 0;

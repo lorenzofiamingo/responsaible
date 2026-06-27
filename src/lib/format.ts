@@ -77,6 +77,57 @@ export const CLAIM_STATUS: Record<string, { label: string; tone: Tone; icon: str
 	analyzed: { label: 'Analyzed', tone: 'success', icon: 'circle-check' }
 };
 
+/**
+ * Claim-to-claim relations. `outbound` is read from the DEPENDENT's side
+ * ("this claim → that one"); `inbound` from the depended-upon side
+ * ("that claim → this one"). `ordering` marks the risk-propagating family.
+ */
+export const CLAIM_RELATION: Record<
+	string,
+	{ label: string; outbound: string; inbound: string; icon: string; ordering: boolean; tone: Tone }
+> = {
+	premise: {
+		label: 'Premise',
+		outbound: 'Rests on',
+		inbound: 'Supports',
+		icon: 'arrow-up-right',
+		ordering: true,
+		tone: 'info'
+	},
+	definition: {
+		label: 'Definition',
+		outbound: 'Uses term defined in',
+		inbound: 'Defines term for',
+		icon: 'quote',
+		ordering: true,
+		tone: 'info'
+	},
+	elaboration: {
+		label: 'Elaboration',
+		outbound: 'Elaborates',
+		inbound: 'Elaborated by',
+		icon: 'git-branch',
+		ordering: true,
+		tone: 'info'
+	},
+	qualification: {
+		label: 'Qualification',
+		outbound: 'Qualifies',
+		inbound: 'Qualified by',
+		icon: 'git-fork',
+		ordering: false,
+		tone: 'warning'
+	},
+	conflict: {
+		label: 'Potential conflict',
+		outbound: 'May conflict with',
+		inbound: 'May conflict with',
+		icon: 'triangle-alert',
+		ordering: false,
+		tone: 'danger'
+	}
+};
+
 export const VERDICT: Record<string, { label: string; tone: Tone; icon: string }> = {
 	supported: { label: 'Supported', tone: 'success', icon: 'circle-check' },
 	weak: { label: 'Weakly supported', tone: 'warning', icon: 'triangle-alert' },

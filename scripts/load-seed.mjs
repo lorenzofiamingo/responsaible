@@ -150,11 +150,16 @@ for (const t of [
 	'risk_signal',
 	'citation',
 	'agent_action',
+	'claim_edge',
 	'atomic_claim',
 	'work_product'
 ]) {
 	lines.push(`DELETE FROM ${t};`);
 }
+
+// Claim-edge relation vocabulary (mirrors src/lib/server/db/schema.ts).
+const EDGE_RELATIONS = new Set(['premise', 'definition', 'elaboration', 'qualification', 'conflict']);
+const ORDERING_RELATIONS = new Set(['premise', 'definition', 'elaboration']);
 
 // Collect every seeded supervisory action globally, then chain by createdAt.
 const audits = [];
@@ -234,7 +239,9 @@ for (const wp of items) {
 	// analysis (status starts 'pending'; the supervisor reveals it by running it).
 	// Use explicit `claims` from the ADK pipeline when present; otherwise derive
 	// them deterministically from the body so offsets are always exact.
-	(wp.claims ?? deriveClaims(wp)).forEach((c) => {
+	const wpClaims = wp.claims ?? deriveClaims(wp);
+	const claimIdxs = new Set(wpClaims.map((c) => c.idx));
+	wpClaims.forEach((c) => {
 		const a = c.analysis ?? {};
 		lines.push(
 			`INSERT INTO atomic_claim (id, work_product_id, idx, text, char_start, char_end, kind, assigned_preset, status, analysis_source, preset_used, work_group_json, verdict, analysis_summary, confidence, risk_category, risk_severity, risk_rationale, citation_markers, figure_trace, ran_at, created_at) VALUES (` +
@@ -260,6 +267,37 @@ for (const wp of items) {
 					json(c.citationMarkers ?? null),
 					json(a.figureTrace ?? null),
 					'NULL', // ran_at
+					q(wp.createdAt)
+				].join(', ') +
+				');'
+		);
+	});
+
+	// Typed reasoning-graph edges between this work product's atomic claims.
+	// `from` (the dependent) RESTS ON `to` (the premise/target). Authored by claim
+	// idx in the seed JSON (or emitted by the ADK claim-grapher); validated against
+	// the claims actually inserted so any offset/idx drift is caught at build time.
+	(wp.edges ?? []).forEach((e, i) => {
+		if (!EDGE_RELATIONS.has(e.relation)) {
+			throw new Error(`${wp.id}: edge #${i} has unknown relation '${e.relation}'.`);
+		}
+		if (!claimIdxs.has(e.from) || !claimIdxs.has(e.to)) {
+			throw new Error(`${wp.id}: edge #${i} references a missing claim idx (${e.from} -> ${e.to}).`);
+		}
+		if (e.from === e.to) {
+			throw new Error(`${wp.id}: edge #${i} is a self-loop on claim ${e.from}.`);
+		}
+		const ordering = e.ordering ?? ORDERING_RELATIONS.has(e.relation);
+		lines.push(
+			`INSERT INTO claim_edge (id, work_product_id, from_claim_id, to_claim_id, relation, rationale, is_ordering, created_at) VALUES (` +
+				[
+					q(`${wp.id}_edge${i}`),
+					q(wp.id),
+					q(`${wp.id}_claim${e.from}`),
+					q(`${wp.id}_claim${e.to}`),
+					q(e.relation),
+					q(e.rationale ?? ''),
+					b(ordering),
 					q(wp.createdAt)
 				].join(', ') +
 				');'

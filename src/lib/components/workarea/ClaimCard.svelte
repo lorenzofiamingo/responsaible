@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Badge from '$lib/components/Badge.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import type { ClaimGraphInfo } from '$lib/claim-graph';
 	import { CLAIM_KIND, RISK_CATEGORY, SEVERITY, VERDICT } from '$lib/format';
 	import type { AtomicClaim, ClaimRunResult } from '$lib/types';
 
@@ -9,6 +10,7 @@
 		selected,
 		status,
 		result,
+		info,
 		groupLabel,
 		onSelect,
 		onRun
@@ -17,6 +19,7 @@
 		selected: boolean;
 		status: string;
 		result: ClaimRunResult | undefined;
+		info?: ClaimGraphInfo;
 		groupLabel: string;
 		onSelect: () => void;
 		onRun: () => void;
@@ -25,11 +28,16 @@
 	const kind = $derived(CLAIM_KIND[claim.kind] ?? CLAIM_KIND.assertion);
 </script>
 
-<div class="card" class:sel={selected} class:running={status === 'running'}>
+<div class="card" class:sel={selected} class:running={status === 'running'} class:undermined={info?.undermined}>
 	<button type="button" class="hit" onclick={onSelect}>
 		<div class="top">
 			<span class="idx">{claim.idx + 1}</span>
 			<span class="kind"><Icon name={kind.icon} size={11} /> {kind.label}</span>
+			{#if info?.loadBearing}
+				<span class="bearing" title="{info.dependentCount} claims rest on this one">
+					<Icon name="git-branch" size={10} /> load-bearing
+				</span>
+			{/if}
 			<span class="group" title="Work group">{groupLabel}</span>
 		</div>
 		<p class="snippet">{claim.text}</p>
@@ -50,6 +58,11 @@
 					</Badge>
 				{/if}
 				<span class="pct">{Math.round(result.confidence * 100)}%</span>
+				{#if info?.undermined}
+					<span class="warn" title="Rests on a weaker premise">
+						<Icon name="triangle-alert" size={11} /> rests on {VERDICT[info.inheritedVerdict ?? '']?.label?.toLowerCase() ?? 'a weaker'} premise
+					</span>
+				{/if}
 			{:else}
 				<span class="pending">Not analyzed</span>
 			{/if}
@@ -78,6 +91,9 @@
 	}
 	.card.running {
 		border-color: var(--color-accent);
+	}
+	.card.undermined {
+		border-color: var(--status-danger-fg);
 	}
 	.hit {
 		flex: 1;
@@ -118,6 +134,15 @@
 		letter-spacing: var(--tracking-wide);
 		color: var(--text-tertiary);
 	}
+	.bearing {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-accent-active);
+	}
 	.group {
 		margin-left: auto;
 		font-family: var(--font-mono);
@@ -153,6 +178,13 @@
 	.pending {
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
+	}
+	.warn {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 10px;
+		color: var(--status-danger-fg);
 	}
 	.run-state {
 		display: inline-flex;

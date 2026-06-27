@@ -30,6 +30,7 @@ from .tools import cellar_fetch, cellar_search, celex_from_cite
 RESEARCH_OUTPUT_KEY = "research_findings"
 DRAFT_OUTPUT_KEY = "draft_product"
 CLAIMS_OUTPUT_KEY = "claims"
+CLAIM_EDGES_OUTPUT_KEY = "claim_edges"
 CLAIM_ANALYSES_OUTPUT_KEY = "claim_analyses"
 CRITIC_OUTPUT_KEY = "critique"
 
@@ -147,6 +148,43 @@ def build_claim_splitter_agent() -> LlmAgent:
     )
 
 
+def build_claim_grapher_agent() -> LlmAgent:
+    """Agent 3a-bis: map the dependency / consistency relations between atomic claims.
+
+    Runs after the splitter, before the per-claim analyzer. It does NOT re-judge
+    claims; it only records how they depend on one another, so the console can
+    propagate risk (a conclusion is no more reliable than the premise it rests on)
+    and surface load-bearing claims, qualifications and potential conflicts.
+    """
+    return LlmAgent(
+        name="claim_grapher",
+        model=get_model(),
+        output_key=CLAIM_EDGES_OUTPUT_KEY,
+        instruction=(
+            f"{_DOMAIN_PREAMBLE}\n\n"
+            "ROLE: Claim structure mapper. You are given the atomic claims (state key "
+            f"'{CLAIMS_OUTPUT_KEY}') and the drafter's JSON (state key '{DRAFT_OUTPUT_KEY}'). "
+            "Identify how the claims relate to one another. Each edge is DIRECTED: "
+            "`from` is the DEPENDENT claim and `to` is the claim it relies on.\n"
+            "Relation vocabulary:\n"
+            "- premise: `from` (a conclusion/obligation/recommendation) only holds if "
+            "`to` holds. This is the main risk-propagating relation.\n"
+            "- definition: `from` uses a term that `to` defines.\n"
+            "- elaboration: `from` specialises or operationalises the rule in `to`.\n"
+            "- qualification: `from` narrows, caveats or carves out an exception to `to` "
+            "(lateral — surfaced for consistency, not risk propagation).\n"
+            "- conflict: `from` and `to` may contradict each other (lateral).\n"
+            "Be sparse and meaningful: only connect claims with a real logical link; do "
+            "NOT link headings or boilerplate. Prefer premise/elaboration edges from "
+            "conclusions back to the rules they stand on. Never create a cycle among "
+            "premise/definition/elaboration edges.\n"
+            "Return ONLY JSON: {\"edges\": [{\"from\": int, \"to\": int, \"relation\": "
+            "\"premise|definition|elaboration|qualification|conflict\", \"rationale\": "
+            "str (one short sentence)}]}. `from`/`to` are claim idx values; from != to."
+        ),
+    )
+
+
 def build_claim_analyzer_agent() -> LlmAgent:
     """Agent 3b: rate each atomic claim — verdict, confidence, risk, supporting markers."""
     return LlmAgent(
@@ -185,6 +223,7 @@ def build_pipeline() -> SequentialAgent:
             build_research_agent(),
             build_drafter_agent(),
             build_claim_splitter_agent(),
+            build_claim_grapher_agent(),
             build_claim_analyzer_agent(),
             build_critic_agent(),
         ],
