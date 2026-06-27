@@ -170,7 +170,7 @@
 		"type": "risk_analysis",
 		"title": "Liability exposure for Vector's autonomous agent product",
 		"summary": "Assesses civil liability where Vector's autonomous AI agent causes financial loss to a third party.",
-		"body": "Where Vector's autonomous agent causes harm, the deployer may face liability under the high-risk obligations of the AI Act if the system is in scope [1]. In addition, Regulation (EU) 2025/1206 on liability for AI systems imposes strict liability on operators of autonomous agents and reverses the burden of proof for fault [2], so Vector would bear the burden of disproving causation. We therefore rate the residual liability exposure as high.",
+		"body": "Where Vector's autonomous agent causes harm, the deployer may face liability under the high-risk obligations of the AI Act if the system is in scope [1]. In addition, Regulation (EU) 2025/3217 on liability for AI systems imposes strict liability on operators of autonomous agents and reverses the burden of proof for fault [2], so Vector would bear the burden of disproving causation. We therefore rate the residual liability exposure as high.",
 		"matterRef": "MAT-2026-0168",
 		"matterName": "Vector — autonomous agent liability",
 		"agentName": "Itaily Risk Agent",
@@ -183,14 +183,14 @@
 			{ "step": 1, "kind": "search", "actorAgent": "research", "summary": "Searched for an EU AI civil-liability instrument.", "detail": { "query": "EU AI liability regulation strict liability operator", "hits": 2 } },
 			{ "step": 2, "kind": "reason", "actorAgent": "drafter", "summary": "Asserted a strict-liability regime and reversed burden of proof.", "detail": { "note": "instrument identity not verified against EUR-Lex" } },
 			{ "step": 3, "kind": "draft", "actorAgent": "drafter", "summary": "Drafted a high-exposure conclusion resting on the asserted regulation." },
-			{ "step": 4, "kind": "critique", "actorAgent": "critic", "summary": "Could not locate the cited 2025/1206 instrument; confidence lowered and the conclusion flagged." }
+			{ "step": 4, "kind": "critique", "actorAgent": "critic", "summary": "Could not locate the cited 2025/3217 instrument; confidence lowered and the conclusion flagged." }
 		],
 		"citations": [
 			{ "marker": 1, "claim": "Deployers of in-scope high-risk AI face AI Act obligations.", "celex": "32024R1689", "eli": "http://data.europa.eu/eli/reg/2024/1689/oj", "title": "Regulation (EU) 2024/1689 (Artificial Intelligence Act)", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689", "snippet": "Deployers of high-risk AI systems shall take appropriate technical and organisational measures to ensure they use such systems in accordance with the instructions of use.", "locator": "Art. 26(1)", "supportsClaim": true },
-			{ "marker": 2, "claim": "A binding EU regulation imposes strict liability on AI operators and reverses the burden of proof.", "celex": "32025R1206", "eli": "http://data.europa.eu/eli/reg/2025/1206/oj", "title": "Regulation (EU) 2025/1206 on liability for artificial intelligence systems", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32025R1206", "snippet": "Operators of autonomous AI systems shall be strictly liable for damage caused…", "locator": "Art. 4", "supportsClaim": true }
+			{ "marker": 2, "claim": "A binding EU regulation imposes strict liability on AI operators and reverses the burden of proof.", "celex": "32025R3217", "eli": "http://data.europa.eu/eli/reg/2025/3217/oj", "title": "Regulation (EU) 2025/3217 on liability for artificial intelligence systems", "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32025R3217", "snippet": "Operators of autonomous AI systems shall be strictly liable for damage caused…", "locator": "Art. 4", "supportsClaim": true }
 		],
 		"riskSignals": [
-			{ "category": "hallucination", "severity": "high", "rationale": "The conclusion rests on 'Regulation (EU) 2025/1206', an instrument that does not appear in EUR-Lex. Likely a fabricated authority.", "confidence": 0.9 },
+			{ "category": "hallucination", "severity": "high", "rationale": "The conclusion rests on 'Regulation (EU) 2025/3217', an instrument that does not appear in EUR-Lex. Likely a fabricated authority.", "confidence": 0.9 },
 			{ "category": "missing_authority", "severity": "high", "rationale": "No verifiable binding source supports a strict-liability / reversed-burden regime for AI in EU law as cited.", "confidence": 0.88 }
 		]
 	},

@@ -67,6 +67,8 @@ export const actions: Actions = {
 		await db.insert(supervisoryAction).values({
 			id: `sa_${crypto.randomUUID()}`,
 			...fields,
+			// `action` is validated against ALLOWED above, so this narrowing is safe.
+			action: action as 'approve' | 'amend' | 'reject' | 'request_rework' | 'escalate' | 'override',
 			prevHash,
 			hash
 		});

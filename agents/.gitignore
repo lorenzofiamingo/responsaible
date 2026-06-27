@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Secrets — never commit real keys.
+.env
+
+# Generated seed output (regenerate with `python -m itaily_agents.run_seed`).
+# Comment this out if you want to commit the generated dataset.
+out/work-products.json

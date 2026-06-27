@@ -8,6 +8,7 @@
 	import SupervisoryActions from '$lib/components/SupervisoryActions.svelte';
 	import TraceTimeline from '$lib/components/TraceTimeline.svelte';
 	import { fmtDateTime, WP_TYPE } from '$lib/format';
+	import { invalidateAll } from '$app/navigation';
 
 	let { data, form } = $props();
 
@@ -28,6 +29,22 @@
 	});
 
 	const unresolved = $derived(data.citations.filter((c) => c.verifyStatus === 'unresolved').length);
+	const unchecked = $derived(data.citations.filter((c) => c.verifyStatus === 'unchecked').length);
+
+	let verifyingCites = $state(false);
+	async function verifyCitations() {
+		verifyingCites = true;
+		try {
+			await fetch('/api/cellar/verify', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ workProductId: data.wp.id })
+			});
+			await invalidateAll();
+		} finally {
+			verifyingCites = false;
+		}
+	}
 </script>
 
 <a class="back" href="/"><Icon name="arrow-right" size={14} class="flip" /> Back to queue</a>
@@ -95,8 +112,16 @@
 				<Icon name="book-open" size={16} /> Sources
 				<span class="count">{data.citations.length}</span>
 			</h2>
+			<button class="verify-cites" onclick={verifyCitations} disabled={verifyingCites}>
+				<Icon name="shield-check" size={14} />
+				{verifyingCites
+					? 'Checking EU CELLAR…'
+					: unchecked > 0
+						? 'Verify citations against EU CELLAR'
+						: 'Re-verify citations'}
+			</button>
 			{#if unresolved > 0}
-				<p class="warn"><Icon name="triangle-alert" size={13} /> {unresolved} citation{unresolved > 1 ? 's' : ''} could not be resolved against EU law.</p>
+				<p class="warn"><Icon name="triangle-alert" size={13} /> {unresolved} citation{unresolved > 1 ? 's' : ''} could not be resolved against EU law — likely a fabricated authority.</p>
 			{/if}
 			<div class="sources">
 				{#each data.citations as c (c.id)}
@@ -255,6 +280,32 @@
 		border-top: 1.5px solid var(--border-subtle);
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
+	}
+	.verify-cites {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		width: 100%;
+		justify-content: center;
+		margin-bottom: var(--space-3);
+		padding: 9px 12px;
+		font-family: var(--font-display);
+		font-weight: var(--weight-medium);
+		font-size: var(--text-sm);
+		color: var(--text-primary);
+		background: var(--surface-card);
+		border: 1.5px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		transition: all var(--duration-fast) var(--ease-out);
+	}
+	.verify-cites:hover {
+		border-color: var(--color-accent);
+		background: var(--terracotta-50);
+	}
+	.verify-cites:disabled {
+		opacity: 0.6;
+		cursor: progress;
 	}
 	.warn {
 		display: flex;
