@@ -12,36 +12,64 @@
 	const onWorkspace = $derived(page.url.pathname.startsWith(`${base}/workspace`));
 </script>
 
-<a class="back" href="/"><Icon name="arrow-right" size={14} class="flip" /> Back to queue</a>
+<div class="wp" class:ws={onWorkspace}>
+	<a class="back" href="/"><Icon name="arrow-right" size={14} class="flip" /> Back to queue</a>
 
-<header class="hdr">
-	<div class="eyebrow itaily-eyebrow">
-		<Icon name={WP_TYPE[data.wp.type].icon} size={12} />
-		{WP_TYPE[data.wp.type].label} · {data.wp.matterName} · {data.wp.matterRef}
-	</div>
-	<h1>{data.wp.title}</h1>
-	<p class="summary">{data.wp.summary}</p>
-	<div class="meta">
-		<StatusBadge status={data.wp.status} />
-		<ConfidenceMeter value={data.wp.confidence} />
-		<span class="m"><Icon name="sparkles" size={13} /> {data.wp.agentName}</span>
-		<span class="m mono">{data.wp.model}</span>
-		<span class="m mono"><Icon name="clock" size={12} /> {fmtDateTime(data.wp.createdAt)}</span>
-	</div>
-</header>
+	<header class="hdr">
+		<div class="eyebrow itaily-eyebrow">
+			<Icon name={WP_TYPE[data.wp.type].icon} size={12} />
+			{WP_TYPE[data.wp.type].label} · {data.wp.matterName} · {data.wp.matterRef}
+		</div>
+		<h1>{data.wp.title}</h1>
+		<p class="summary">{data.wp.summary}</p>
+		<div class="meta">
+			<StatusBadge status={data.wp.status} />
+			<ConfidenceMeter value={data.wp.confidence} />
+			<span class="m"><Icon name="sparkles" size={13} /> {data.wp.agentName}</span>
+			<span class="m mono">{data.wp.model}</span>
+			<span class="m mono"><Icon name="clock" size={12} /> {fmtDateTime(data.wp.createdAt)}</span>
+		</div>
+	</header>
 
-<nav class="tabs">
-	<a class="tab" class:active={!onWorkspace} href={base} data-sveltekit-noscroll>
-		<Icon name="file-text" size={15} /> Summary
-	</a>
-	<a class="tab" class:active={onWorkspace} href={`${base}/workspace`} data-sveltekit-noscroll>
-		<Icon name="git-branch" size={15} /> Work area
-	</a>
-</nav>
+	<nav class="tabs">
+		<a class="tab" class:active={!onWorkspace} href={base} data-sveltekit-noscroll>
+			<Icon name="file-text" size={15} /> Summary
+		</a>
+		<a class="tab" class:active={onWorkspace} href={`${base}/workspace`} data-sveltekit-noscroll>
+			<Icon name="git-branch" size={15} /> Work area
+		</a>
+	</nav>
 
-{@render children()}
+	{@render children()}
+</div>
 
 <style>
+	/* On the Work area tab the page becomes a fixed-height app shell: the header
+	   stays put and the three panes below fill the rest of the viewport, each
+	   scrolling on its own, so the page itself never scrolls. The bounded height
+	   subtracts the sticky top bar (60px) and the page's vertical padding (the
+	   --space-6 the root .content adds top and bottom). Gated on BOTH dimensions:
+	   only wide AND reasonably tall viewports get the shell — on anything narrower
+	   than the three-up breakpoint or shorter than ~700px the panes flow and the
+	   page scrolls, so the fixed chrome can never squeeze a pane to nothing. */
+	@media (min-width: 1200px) and (min-height: 700px) {
+		.wp.ws {
+			display: flex;
+			flex-direction: column;
+			height: calc(100dvh - 60px - 2 * var(--space-6));
+			min-height: 0;
+		}
+		.wp.ws .back,
+		.wp.ws .hdr,
+		.wp.ws .tabs {
+			flex: none;
+		}
+		.wp.ws :global(.workarea) {
+			flex: 1;
+			min-height: 0;
+		}
+	}
+
 	.back {
 		display: inline-flex;
 		align-items: center;
