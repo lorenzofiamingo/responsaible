@@ -155,15 +155,26 @@
 		</svg>
 
 		<div class="legend">
-			<span title="Solid arrow: this claim rests on another as a premise, definition, or elaboration. If the supporting claim fails, this one is undermined."
-				><i class="sw order"></i> depends on</span
-			>
-			<span title="Dashed arrow: this claim narrows or adds conditions to another, without supporting or contradicting it."
-				><i class="sw qual"></i> qualifies</span
-			>
-			<span title="Dashed line: this claim contradicts or is in tension with another."
-				><i class="sw conf"></i> conflict</span
-			>
+			<span class="li" tabindex="0">
+				<i class="sw order"></i> depends on
+				<span class="tip" role="tooltip"
+					>Solid arrow: this claim rests on another as a premise, definition, or elaboration. If
+					the supporting claim fails, this one is undermined.</span
+				>
+			</span>
+			<span class="li" tabindex="0">
+				<i class="sw qual"></i> qualifies
+				<span class="tip" role="tooltip"
+					>Dashed arrow: this claim narrows or adds conditions to another, without supporting or
+					contradicting it.</span
+				>
+			</span>
+			<span class="li" tabindex="0">
+				<i class="sw conf"></i> conflict
+				<span class="tip" role="tooltip"
+					>Dashed line: this claim contradicts or is in tension with another.</span
+				>
+			</span>
 		</div>
 		{#if !edges.length}
 			<p class="none">No dependencies mapped for this document.</p>
@@ -249,6 +260,7 @@
 		stroke: var(--status-danger-fg);
 	}
 	.legend {
+		position: relative; /* anchor for tooltips so they can't overflow the clipped panel */
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px 14px;
@@ -260,11 +272,48 @@
 		letter-spacing: var(--tracking-wide);
 		color: var(--text-tertiary);
 	}
-	.legend span {
+	.legend .li {
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;
 		cursor: help;
+	}
+	.legend .li:focus-visible {
+		outline: 2px solid var(--border-focus);
+		outline-offset: 2px;
+		border-radius: var(--radius-xs);
+	}
+	.tip {
+		position: absolute;
+		left: 0;
+		bottom: calc(100% + 8px);
+		z-index: 5;
+		width: max-content;
+		max-width: 100%; /* relative to .legend = panel content width, never overflows */
+		padding: 7px 9px;
+		background: var(--surface-inverse);
+		color: var(--text-on-inverse);
+		border-radius: var(--radius-sm);
+		box-shadow: var(--shadow-lg);
+		font-size: var(--text-xs);
+		text-transform: none;
+		letter-spacing: normal;
+		line-height: var(--leading-snug);
+		text-align: left;
+		opacity: 0;
+		visibility: hidden;
+		transform: translateY(2px);
+		transition:
+			opacity var(--duration-fast) var(--ease-out),
+			transform var(--duration-fast) var(--ease-out),
+			visibility var(--duration-fast);
+		pointer-events: none;
+	}
+	.legend .li:hover .tip,
+	.legend .li:focus-visible .tip {
+		opacity: 1;
+		visibility: visible;
+		transform: translateY(0);
 	}
 	.sw {
 		width: 14px;
