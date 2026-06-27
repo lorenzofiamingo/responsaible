@@ -2,7 +2,7 @@
 
 ## Overview
 
-Itaily Oversight is a **SvelteKit app deployed as a single Cloudflare Worker**. It is
+Itaily respons[ai]ble is a **SvelteKit app deployed as a single Cloudflare Worker**. It is
 a thin, server-rendered console over a small relational model in **Cloudflare D1**
 (serverless SQLite), accessed through **Drizzle ORM**. There are no client-side data
 fetches with secrets and no runtime AI calls: the AI work products are produced
@@ -237,7 +237,7 @@ SQL then applies it to local D1 with `wrangler d1 execute --local --file`.
 The vendored `itaily-design-system/` describes a consumer "Italian-law copilot"
 product. We deliberately adopt **only its visual identity** — design tokens (colour,
 type, elevation, motion), the brand aesthetic, and component *look* — and **not** its
-product narrative. Itaily Oversight is an **EU-law supervision console**, not an
+product narrative. Itaily respons[ai]ble is an **EU-law supervision console**, not an
 Italian-law copilot. Concretely: we reuse the tokens (`src/lib/styles/itaily/`) and
 recreate the brand's component look in `src/lib/components/`, but the UI copy, domain
 (EU law, English), and information architecture are the supervision product's own. See

@@ -7,7 +7,7 @@ import type { FigureTrace, SupervisorInput } from '$lib/types';
 export * from './auth-schema';
 
 /**
- * Itaily Oversight — data model.
+ * Itaily respons[ai]ble — data model.
  *
  * A `work_product` is one AI-generated deliverable (draft / memo / opinion / risk analysis).
  * Each carries a transparency `agent_action` trace, `citation`s (resolvable against

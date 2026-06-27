@@ -13,7 +13,7 @@ import type { TraceSource } from '$lib/types';
 import type { WebToolConfig } from '$lib/workgroups';
 
 const TIMEOUT_MS = 20_000;
-const UA = 'ItailyOversight/0.1 (Hack the Law supervision console)';
+const UA = 'ItailyResponsable/0.1 (Hack the Law supervision console)';
 
 // --- Perplexity open-web research -------------------------------------------------
 

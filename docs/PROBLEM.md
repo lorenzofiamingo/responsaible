@@ -21,7 +21,7 @@ A **bonus** track is offered for going beyond the baseline. We chose **citation
 verification against a live authoritative source** (the EU CELLAR / EUR-Lex corpus)
 to detect hallucinated or fabricated legal authorities.
 
-## The four asks, and how Itaily Oversight addresses each
+## The four asks, and how Itaily respons[ai]ble addresses each
 
 ### (i) Understand what the AI agents did — the **agent trace**
 

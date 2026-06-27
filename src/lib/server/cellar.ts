@@ -11,7 +11,7 @@ import type { KVNamespace } from '@cloudflare/workers-types';
  */
 
 const RESOURCE = 'http://publications.europa.eu/resource/celex/';
-const UA = 'ItailyOversight/0.1 (Hack the Law supervision console)';
+const UA = 'ItailyResponsable/0.1 (Hack the Law supervision console)';
 const KV_PREFIX = 'cellar:celex:';
 const TTL_SECONDS = 60 * 60 * 24; // 24h
 const TIMEOUT_MS = 12_000;

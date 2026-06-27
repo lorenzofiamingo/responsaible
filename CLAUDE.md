@@ -1,4 +1,4 @@
-# Itaily Oversight
+# Itaily respons[ai]ble
 
 An AI legal-work **supervision console** for a global law firm. AI agents produce
 work products (drafts, research memos, risk analyses); a supervising lawyer must

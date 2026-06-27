@@ -1,4 +1,4 @@
-# Itaily Oversight
+# Itaily respons[ai]ble
 
 > An AI legal-work **supervision console** for a global law firm. AI agents produce
 > work products; a supervising lawyer reviews, risk-triages, and signs them off —
@@ -8,7 +8,7 @@
 
 AI agents already draft memos, run legal research, and produce risk analyses faster
 than any human can read them. The bottleneck — and the accountability gap — is
-**supervision**. Itaily Oversight is the console a supervising lawyer uses to stay
+**supervision**. Itaily respons[ai]ble is the console a supervising lawyer uses to stay
 accountable at scale:
 
 1. **Triage** — a queue sorted by risk and confidence surfaces the riskiest work first.

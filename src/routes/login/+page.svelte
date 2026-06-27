@@ -26,7 +26,7 @@
 <div class="login">
 	<div class="card">
 		<img class="logo" src="/itaily-logo.svg" alt="Itaily" />
-		<span class="itaily-eyebrow">Oversight</span>
+		<span class="itaily-eyebrow">respons[ai]ble</span>
 		<h1>Sign in to the supervision console</h1>
 		<p class="sub">
 			Sign in as the <strong>supervising lawyer</strong> — upload documents, review the AI work
@@ -81,6 +81,10 @@
 	.itaily-eyebrow {
 		display: block;
 		margin-bottom: 6px;
+		/* Render the product wordmark as the plain dark name — overrides the
+		   eyebrow device's uppercase + accent colour. */
+		text-transform: none;
+		color: var(--text-primary);
 	}
 	h1 {
 		font-size: var(--text-xl);

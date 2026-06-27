@@ -5,7 +5,7 @@
 <a class="brand" {href}>
 	<img class="word" src="/itaily-logo.svg" alt="Itaily" />
 	<span class="sep"></span>
-	<span class="product">Oversight</span>
+	<span class="product">respons[ai]ble</span>
 </a>
 
 <style>
