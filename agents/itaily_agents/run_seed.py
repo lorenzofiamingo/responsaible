@@ -33,9 +33,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import re
+
 from dotenv import load_dotenv
 
 from .models import get_model_label
+from .workgroups import auto_preset
 
 # Output location. A human copies this into the app and runs `npm run seed`.
 OUT_DIR = Path(__file__).resolve().parent.parent / "out"
@@ -272,12 +275,56 @@ def _clamp(value: Any, lo: float = 0.0, hi: float = 1.0, default: float = 0.5) -
 # --- assembling one work product --------------------------------------------------
 
 
+_MARKER_RE = re.compile(r"\[(\d+)\]")
+
+
+def build_claims(
+    claims_raw: list[dict[str, Any]],
+    analyses_raw: list[dict[str, Any]],
+    body: str,
+) -> list[dict[str, Any]]:
+    """Merge the splitter's atomic claims with the per-claim analyses into the loader shape.
+
+    Each claim is stamped with its auto-assigned work-group preset (so the offline
+    default matches the in-browser one) and the citation markers it carries.
+    """
+    by_idx = {a.get("idx"): a for a in (analyses_raw or [])}
+    claims: list[dict[str, Any]] = []
+    for c in claims_raw or []:
+        text = c.get("text", "")
+        kind = c.get("kind", "assertion")
+        markers = [int(m) for m in _MARKER_RE.findall(text)]
+        a = by_idx.get(c.get("idx"), {})
+        claims.append(
+            {
+                "idx": c.get("idx"),
+                "text": text,
+                "charStart": c.get("charStart", 0),
+                "charEnd": c.get("charEnd", 0),
+                "kind": kind,
+                "assignedPreset": auto_preset(text, kind),
+                "citationMarkers": a.get("citationMarkers") or markers,
+                "analysis": {
+                    "verdict": a.get("verdict", "supported"),
+                    "confidence": _clamp(a.get("confidence"), default=0.7),
+                    "summary": a.get("summary", ""),
+                    "riskCategory": a.get("riskCategory"),
+                    "riskSeverity": a.get("riskSeverity"),
+                    "riskRationale": a.get("riskRationale", ""),
+                    "figureTrace": None,
+                },
+            }
+        )
+    return claims
+
+
 def assemble_work_product(
     matter: SeedMatter,
     draft: dict[str, Any],
     critique: dict[str, Any],
     trace: list[dict[str, Any]],
     created_at: str,
+    claims: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build the final work-product object in the EXACT shape the app loads."""
     wp_type = draft.get("type") or matter.expected_type
@@ -327,6 +374,7 @@ def assemble_work_product(
         "trace": trace,
         "citations": citations,
         "riskSignals": risk_signals,
+        "claims": claims or [],
     }
 
 
@@ -347,7 +395,13 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
     from google.adk.sessions import InMemorySessionService
     from google.genai import types
 
-    from .pipeline import CRITIC_OUTPUT_KEY, DRAFT_OUTPUT_KEY, build_pipeline
+    from .pipeline import (
+        CLAIM_ANALYSES_OUTPUT_KEY,
+        CLAIMS_OUTPUT_KEY,
+        CRITIC_OUTPUT_KEY,
+        DRAFT_OUTPUT_KEY,
+        build_pipeline,
+    )
 
     session_service = InMemorySessionService()
     session_id = f"seed-{matter.id}-{uuid.uuid4().hex[:8]}"
@@ -380,9 +434,12 @@ async def run_matter(matter: SeedMatter) -> dict[str, Any]:
     state = getattr(session, "state", {}) or {}
     draft = _parse_json_blob(state.get(DRAFT_OUTPUT_KEY, ""))
     critique = _parse_json_blob(state.get(CRITIC_OUTPUT_KEY, ""))
+    claims_raw = _parse_json_blob(state.get(CLAIMS_OUTPUT_KEY, "")).get("claims", [])
+    analyses_raw = _parse_json_blob(state.get(CLAIM_ANALYSES_OUTPUT_KEY, "")).get("analyses", [])
+    claims = build_claims(claims_raw, analyses_raw, draft.get("body", ""))
 
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return assemble_work_product(matter, draft, critique, builder.steps, created_at)
+    return assemble_work_product(matter, draft, critique, builder.steps, created_at, claims)
 
 
 # --- dry-run fixture (offline, no ADK / no network) -------------------------------
@@ -395,6 +452,27 @@ def dry_run_product(matter: SeedMatter) -> dict[str, Any]:
     documents exactly what a real run emits.
     """
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    body = "This is a placeholder body produced by --dry-run [1]."
+    claims = [
+        {
+            "idx": 0,
+            "text": body,
+            "charStart": 0,
+            "charEnd": len(body),
+            "kind": "citation_ref",
+            "assignedPreset": auto_preset(body, "citation_ref"),
+            "citationMarkers": [1],
+            "analysis": {
+                "verdict": "supported",
+                "confidence": 0.7,
+                "summary": "Placeholder claim grounded in the dry-run citation.",
+                "riskCategory": None,
+                "riskSeverity": None,
+                "riskRationale": "",
+                "figureTrace": None,
+            },
+        }
+    ]
     trace = [
         {"step": 1, "kind": "search", "actorAgent": "research",
          "summary": "Called cellar_search(query='…').",
@@ -412,7 +490,7 @@ def dry_run_product(matter: SeedMatter) -> dict[str, Any]:
         "type": matter.expected_type,
         "title": f"[DRY RUN] {matter.matter_name}",
         "summary": "Offline fixture — replace by running the real ADK pipeline.",
-        "body": "This is a placeholder body produced by --dry-run [1].",
+        "body": body,
         "matterRef": matter.matter_ref,
         "matterName": matter.matter_name,
         "agentName": AGENT_NAME_BY_TYPE.get(matter.expected_type, "Itaily Research Agent"),
@@ -430,6 +508,7 @@ def dry_run_product(matter: SeedMatter) -> dict[str, Any]:
              "snippet": "…", "locator": "Art. 1", "supportsClaim": True}
         ],
         "riskSignals": [],
+        "claims": claims,
     }
 
 

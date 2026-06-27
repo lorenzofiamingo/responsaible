@@ -59,6 +59,37 @@ export const VERIFY: Record<string, { label: string; tone: Tone; icon: string }>
 	unresolved: { label: 'Unresolved', tone: 'danger', icon: 'circle-x' }
 };
 
+// --- Atomic-claim work area ---
+
+export const CLAIM_KIND: Record<string, { label: string; icon: string }> = {
+	heading: { label: 'Heading', icon: 'file-text' },
+	recital: { label: 'Recital', icon: 'book-open' },
+	obligation: { label: 'Obligation', icon: 'scale' },
+	definition: { label: 'Definition', icon: 'quote' },
+	citation_ref: { label: 'Citation', icon: 'gavel' },
+	assertion: { label: 'Assertion', icon: 'list-checks' },
+	boilerplate: { label: 'Boilerplate', icon: 'file-text' }
+};
+
+export const CLAIM_STATUS: Record<string, { label: string; tone: Tone; icon: string }> = {
+	pending: { label: 'Not analyzed', tone: 'neutral', icon: 'circle-alert' },
+	running: { label: 'Analyzing', tone: 'accent', icon: 'sparkles' },
+	analyzed: { label: 'Analyzed', tone: 'success', icon: 'circle-check' }
+};
+
+export const VERDICT: Record<string, { label: string; tone: Tone; icon: string }> = {
+	supported: { label: 'Supported', tone: 'success', icon: 'circle-check' },
+	weak: { label: 'Weakly supported', tone: 'warning', icon: 'triangle-alert' },
+	unsupported: { label: 'Unsupported', tone: 'danger', icon: 'circle-x' },
+	flag: { label: 'Flagged', tone: 'danger', icon: 'shield-alert' }
+};
+
+export const EFFORT: Record<string, { label: string }> = {
+	low: { label: 'Low' },
+	med: { label: 'Medium' },
+	high: { label: 'High' }
+};
+
 export const ROLE: Record<string, { label: string; icon: string; tone: Tone; can: string }> = {
 	operator: {
 		label: 'AI operator',

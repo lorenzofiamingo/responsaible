@@ -27,6 +27,8 @@ declare global {
 				BETTER_AUTH_URL?: string;
 				/** Optional: enables the live Gemini intake path. Absent ⇒ rules engine. */
 				GEMINI_API_KEY?: string;
+				/** Live per-claim analysis (optional). Absent ⇒ seeded fallback. */
+				ANTHROPIC_API_KEY?: string;
 				GOOGLE_API_KEY?: string;
 			};
 		}

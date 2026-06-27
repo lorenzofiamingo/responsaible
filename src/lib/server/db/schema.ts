@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { FigureTrace } from '$lib/types';
 
 // Better Auth tables (user/session/account/verification) — co-located so one
 // migration + one Drizzle client cover both auth and the domain model.
@@ -113,6 +114,71 @@ export const riskSignal = sqliteTable(
 );
 
 /**
+ * Atomic claims — the document body, split by the first ADK agent into the
+ * smallest independently-verifiable text units. Each claim carries its source
+ * span (offsets into `work_product.body`), an auto-assigned work-group preset,
+ * and its analysis result. The analysis columns are seeded offline by the ADK
+ * pipeline; a live per-claim run (see /api/.../analyze) overwrites them and also
+ * doubles as the cached fallback when no model key is configured.
+ *
+ * NOT the same as `citation.claim` (the proposition a citation supports).
+ * This is a normal mutable domain table — only `supervisory_action` is insert-only.
+ */
+export const atomicClaim = sqliteTable(
+	'atomic_claim',
+	{
+		id: text('id').primaryKey(),
+		workProductId: text('work_product_id')
+			.notNull()
+			.references(() => workProduct.id),
+		/** 0-based order within the document. */
+		idx: integer('idx').notNull(),
+		text: text('text').notNull().default(''),
+		/** Span into `work_product.body` for left-column highlighting. */
+		charStart: integer('char_start').notNull().default(0),
+		charEnd: integer('char_end').notNull().default(0),
+		kind: text('kind', {
+			enum: ['heading', 'recital', 'obligation', 'definition', 'citation_ref', 'assertion', 'boilerplate']
+		})
+			.notNull()
+			.default('assertion'),
+		/** Work-group preset auto-assigned to this claim by the splitter. */
+		assignedPreset: text('assigned_preset', {
+			enum: ['quick_scan', 'standard_review', 'authority_deep_dive']
+		})
+			.notNull()
+			.default('standard_review'),
+		status: text('status', { enum: ['pending', 'running', 'analyzed'] })
+			.notNull()
+			.default('pending'),
+		// --- analysis (seeded baseline / live result / cached fallback) ---
+		/** null until the supervisor runs it; then 'seed' (fallback) or 'live'. */
+		analysisSource: text('analysis_source', { enum: ['seed', 'live'] }),
+		/** The preset id actually run (may differ from `assignedPreset`). */
+		presetUsed: text('preset_used').notNull().default(''),
+		/** The resolved figure config (model+effort per figure) used for the run. */
+		workGroupJson: text('work_group_json', { mode: 'json' }).$type<unknown | null>(),
+		verdict: text('verdict', { enum: ['supported', 'weak', 'unsupported', 'flag'] }),
+		analysisSummary: text('analysis_summary').notNull().default(''),
+		confidence: real('confidence').notNull().default(0),
+		riskCategory: text('risk_category', {
+			enum: ['hallucination', 'jurisdiction', 'missing_authority', 'conflict', 'deadline']
+		}),
+		riskSeverity: text('risk_severity', { enum: ['low', 'med', 'high'] }),
+		riskRationale: text('risk_rationale').notNull().default(''),
+		/** Document-level `citation.marker`s this claim relies on. */
+		citationMarkers: text('citation_markers', { mode: 'json' }).$type<number[] | null>(),
+		/** Per-figure trace of what each ADK figure did for this claim. */
+		figureTrace: text('figure_trace', { mode: 'json' }).$type<FigureTrace[] | null>(),
+		ranAt: text('ran_at'),
+		createdAt: text('created_at')
+			.notNull()
+			.default(sql`(CURRENT_TIMESTAMP)`)
+	},
+	(t) => [index('claim_wp_idx').on(t.workProductId)]
+);
+
+/**
  * The audit log — INSERT-ONLY. Never UPDATE or DELETE these rows.
  * Each row is hash-chained: hash = sha256(prevHash + workProductId + actorEmail +
  * action + reason + createdAt). `/api/audit/verify` recomputes the chain to prove
@@ -141,4 +207,5 @@ export type WorkProduct = typeof workProduct.$inferSelect;
 export type AgentAction = typeof agentAction.$inferSelect;
 export type Citation = typeof citation.$inferSelect;
 export type RiskSignal = typeof riskSignal.$inferSelect;
+export type AtomicClaim = typeof atomicClaim.$inferSelect;
 export type SupervisoryAction = typeof supervisoryAction.$inferSelect;

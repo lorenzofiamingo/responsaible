@@ -122,3 +122,59 @@ export interface ExtractedDraft {
 		warnings: string[];
 	};
 }
+
+/** What one ADK figure did for a claim during analysis. */
+export interface FigureTrace {
+	role: string;
+	model: string;
+	effort: string;
+	/** A TRACE_KIND value: search | retrieve | reason | draft | cite | critique. */
+	kind: string;
+	summary: string;
+	/** Wall-clock the figure took, ms. */
+	ms: number;
+}
+
+/** An atomic claim: a verifiable text unit split out of the work-product body. */
+export interface AtomicClaim {
+	id: string;
+	workProductId: string;
+	idx: number;
+	text: string;
+	charStart: number;
+	charEnd: number;
+	kind: string;
+	assignedPreset: string;
+	status: string;
+	analysisSource: string | null;
+	presetUsed: string;
+	workGroupJson: unknown | null;
+	verdict: string | null;
+	analysisSummary: string;
+	confidence: number;
+	riskCategory: string | null;
+	riskSeverity: string | null;
+	riskRationale: string;
+	citationMarkers: number[] | null;
+	figureTrace: FigureTrace[] | null;
+	ranAt: string | null;
+	createdAt: string;
+}
+
+/** The per-claim result returned by POST /api/work-products/[id]/analyze. */
+export interface ClaimRunResult {
+	claimId: string;
+	idx: number;
+	status: 'analyzed';
+	analysisSource: 'seed' | 'live';
+	presetUsed: string;
+	verdict: string | null;
+	analysisSummary: string;
+	confidence: number;
+	riskCategory: string | null;
+	riskSeverity: string | null;
+	riskRationale: string;
+	citationMarkers: number[];
+	figureTrace: FigureTrace[];
+	ranAt: string;
+}
