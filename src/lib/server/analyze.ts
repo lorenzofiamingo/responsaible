@@ -366,6 +366,89 @@ function shouldEscalate(v: { confidence: number; riskCategory: string | null }):
 	return v.confidence < ESCALATE_CONFIDENCE || v.riskCategory === 'hallucination';
 }
 
+/** The decisive verdict shape both the model critic and its deterministic fallback return. */
+interface Verdict {
+	verdict: AnalyzeOutput['verdict'];
+	confidence: number;
+	summary: string;
+	riskCategory: string | null;
+	riskSeverity: string | null;
+	riskRationale: string;
+	citationMarkers: number[];
+}
+
+/**
+ * The reviewer verdict derived WITHOUT a model call — the fallback used when no critic
+ * model is reachable (e.g. running on localhost with no API key configured). Instead of
+ * throwing away the real CELLAR + firm-knowledge research the figures already did, we
+ * read off the live EU CELLAR grounding and apply the same hard rules the critic prompt
+ * states: a cited authority that fails to resolve is a hallucination risk; a claim with
+ * no authority lacks one.
+ *
+ * Deliberately CONSERVATIVE: it scores citation HYGIENE (does each cited CELEX resolve
+ * against live EU CELLAR), not semantic support — so confidence stays in the low band to
+ * signal that no model weighed the argument. Web / firm-knowledge findings still appear
+ * in the trace, but a no-model fallback does NOT synthesise them into the verdict; that
+ * judgement is exactly what needs a reviewer model.
+ */
+function deterministicVerdict(g: {
+	groundedTotal: number;
+	resolvedCount: number;
+	unresolvedCount: number;
+	verifiedMarkers: number[];
+	refMarkers: number[];
+	hasGuidance: boolean;
+}): Verdict {
+	const citationMarkers = g.verifiedMarkers.length ? g.verifiedMarkers : g.refMarkers;
+	const note = g.hasGuidance ? ' Applied the supervisor’s instruction.' : '';
+
+	if (g.groundedTotal === 0) {
+		return {
+			verdict: 'weak',
+			confidence: 0.5,
+			summary: `No authority is cited; grounded against EU CELLAR only.${note}`,
+			riskCategory: 'missing_authority',
+			riskSeverity: 'low',
+			riskRationale:
+				'The claim cites no EU instrument, and no reviewer model was reachable to judge whether one is required.',
+			citationMarkers
+		};
+	}
+	if (g.unresolvedCount > 0) {
+		return {
+			verdict: 'unsupported',
+			confidence: 0.35,
+			summary: `${g.unresolvedCount} of ${g.groundedTotal} cited authority(ies) did not resolve in EU CELLAR.${note}`,
+			riskCategory: 'hallucination',
+			riskSeverity: 'high',
+			riskRationale:
+				'A cited CELEX could not be resolved in EU CELLAR — the authority may be fabricated or mis-cited.',
+			citationMarkers
+		};
+	}
+	if (g.resolvedCount === g.groundedTotal) {
+		return {
+			verdict: 'supported',
+			confidence: 0.55,
+			summary: `All ${g.groundedTotal} cited authority(ies) resolve in EU CELLAR.${note}`,
+			riskCategory: null,
+			riskSeverity: null,
+			riskRationale: '',
+			citationMarkers
+		};
+	}
+	return {
+		verdict: 'weak',
+		confidence: 0.45,
+		summary: `${g.resolvedCount} of ${g.groundedTotal} cited authority(ies) verified in EU CELLAR; the rest were inconclusive.${note}`,
+		riskCategory: 'missing_authority',
+		riskSeverity: 'med',
+		riskRationale:
+			'Some cited authorities could not be confirmed against CELLAR and no reviewer model was available to weigh them.',
+		citationMarkers
+	};
+}
+
 // ---- Anthropic tool-use turn — powers the EU Law Researcher's MCP agentic loop ------
 
 interface AnthropicToolDef {
@@ -544,6 +627,14 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 	const resolvedCount =
 		resolutions.filter((r) => r.status === 'verified').length +
 		supSources.filter((s) => s.celexStatus === 'verified').length;
+	// Authorities that ACTIVELY failed to resolve (4xx) vs. merely inconclusive — used
+	// by the deterministic critic fallback to tell a hallucination from a missing check.
+	const unresolvedCount =
+		resolutions.filter((r) => r.status === 'unresolved').length +
+		supSources.filter((s) => s.celexStatus === 'unresolved').length;
+	const verifiedMarkers = resolutions
+		.filter((r) => r.status === 'verified' && r.marker != null)
+		.map((r) => r.marker as number);
 	const usedInput: SupervisorInput | null =
 		supervisorInput && (supervisorInput.guidance || supSources.length)
 			? { guidance: supervisorInput.guidance, sources: supSources }
@@ -618,7 +709,9 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 						{
 							...stamp,
 							kind: 'search',
-							summary: web ? 'Open-web research returned no usable sources.' : 'Web research unavailable (no key / offline).',
+							summary: web
+								? 'Open-web research returned no usable sources.'
+								: 'Open-web research is unavailable here — no web-search API key is configured.',
 							ms: retrieveMs
 						}
 					]
@@ -784,14 +877,43 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 		};
 	}
 
-	// The critic call is the ONLY one allowed to throw → caller falls back to the seed.
-	const firstRun = await runCriticOnce(critic);
-	let v = readVerdict(firstRun.parsed);
-	let criticMs = firstRun.ms;
+	// The critic makes the decisive call. If its model is UNREACHABLE (e.g. running on
+	// localhost with no API key), we do NOT discard the real CELLAR + firm-knowledge
+	// research the figures just did — we derive the verdict from the live grounding so the
+	// work group still returns an honest, grounded result instead of the seeded baseline.
+	// The model call and the JSON parse are kept separate on purpose: only a failed CALL
+	// (no key / network / provider error) falls to the deterministic path. A reachable
+	// model that replies with unparseable JSON is a genuine bug — we let parseJson throw so
+	// the caller falls back to the seed, rather than mislabelling it "no model reachable".
+	let v: Verdict;
+	let criticMs: number;
+	let criticDeterministic = false;
+	let criticReply: string | null = null;
+	const criticStart = Date.now();
+	try {
+		criticReply = await callModel(critic.model, critic.effort, DOMAIN_PREAMBLE, criticUser, env);
+	} catch {
+		criticReply = null; // model unreachable → deterministic, CELLAR-grounded verdict
+	}
+	if (criticReply !== null) {
+		v = readVerdict(parseJson(criticReply));
+		criticMs = Date.now() - criticStart;
+	} else {
+		v = deterministicVerdict({
+			groundedTotal,
+			resolvedCount,
+			unresolvedCount,
+			verifiedMarkers,
+			refMarkers,
+			hasGuidance: !!usedInput?.guidance
+		});
+		criticMs = 0;
+		criticDeterministic = true;
+	}
 	let escalated = false;
 
 	// ---- STAGE 3: bounded escalation ------------------------------------------------
-	if (isTruthy(env.ITAILY_ESCALATION) && MAX_ESCALATIONS > 0 && shouldEscalate(v)) {
+	if (!criticDeterministic && isTruthy(env.ITAILY_ESCALATION) && MAX_ESCALATIONS > 0 && shouldEscalate(v)) {
 		const stronger = strongerVariant(critic);
 		if (stronger) {
 			try {
@@ -805,6 +927,9 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 		}
 	}
 	const verdictSummary = v.summary || 'Rated the claim.';
+	const criticSummary = criticDeterministic
+		? `${verdictSummary} (no reviewer model reachable — verdict derived from the live CELLAR grounding)`
+		: verdictSummary;
 
 	// ---- Honest per-figure trace (real ms + real model per figure) ------------------
 	const figureTrace: FigureTrace[] = [];
@@ -823,7 +948,7 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 					ms: 0
 				});
 			if (f === critic) {
-				figureTrace.push({ role: f.role, model: f.model, effort: f.effort, kind: 'critique', summary: verdictSummary, ms: criticMs, escalated });
+				figureTrace.push({ role: f.role, model: f.model, effort: f.effort, kind: 'critique', summary: criticSummary, ms: criticMs, escalated });
 			}
 			continue;
 		}
@@ -833,7 +958,7 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 				model: f.model,
 				effort: f.effort,
 				kind: 'critique',
-				summary: escalated ? `${verdictSummary} (escalated for a closer look).` : verdictSummary,
+				summary: escalated ? `${verdictSummary} (escalated for a closer look).` : criticSummary,
 				ms: criticMs,
 				escalated
 			});
@@ -856,7 +981,7 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 	return {
 		verdict: v.verdict,
 		confidence: v.confidence,
-		summary: v.summary,
+		summary: criticSummary,
 		riskCategory: v.riskCategory,
 		riskSeverity: v.riskSeverity,
 		riskRationale: v.riskRationale,
