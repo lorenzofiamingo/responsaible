@@ -178,7 +178,9 @@
 							onchange={(e) => editFigure(i, { role: e.currentTarget.value as FigureRole })}
 							aria-label="figure role"
 						>
-							{#each FIGURE_ROLE_IDS as r (r)}
+							<!-- Drafter is offline-only (it writes the seed); never offer it at runtime,
+							     but keep it shown if a seeded figure already carries that role. -->
+							{#each FIGURE_ROLE_IDS.filter((r) => r !== 'drafter' || fig.role === 'drafter') as r (r)}
 								<option value={r}>{FIGURE_ROLE[r].label}</option>
 							{/each}
 						</select>
