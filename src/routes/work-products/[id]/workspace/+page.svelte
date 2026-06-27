@@ -170,7 +170,7 @@
 	<div class="wa-inner">
 		<div class="cols">
 			<section class="panel col-doc">
-				<h3 class="ptitle"><Icon name="file-text" size={15} /> Document · atomic claims</h3>
+				<h3 class="ptitle"><Icon name="file-text" size={15} /> Document</h3>
 				<p class="phint">The first agent split the draft into {data.claims.length} atomic claims. Click any to inspect it.</p>
 				<ClaimText
 					body={wp.body}
