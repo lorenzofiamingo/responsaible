@@ -1,10 +1,26 @@
 <script lang="ts">
 	import Badge from './Badge.svelte';
 	import Icon from './Icon.svelte';
-	import { CLAIM_STATE, claimState, RISK_CATEGORY, SEVERITY, VERDICT, type ClaimState } from '$lib/format';
+	import {
+		CLAIM_STATE,
+		claimState,
+		RISK_CATEGORY,
+		SEVERITY,
+		VERDICT,
+		type ClaimState,
+		type ClaimStateInfo
+	} from '$lib/format';
 	import type { AtomicClaim } from '$lib/types';
 
-	let { claims, workspaceHref }: { claims: AtomicClaim[]; workspaceHref: string } = $props();
+	let {
+		claims,
+		workspaceHref,
+		infoById
+	}: {
+		claims: AtomicClaim[];
+		workspaceHref: string;
+		infoById?: Record<string, ClaimStateInfo>;
+	} = $props();
 
 	const sevRank: Record<string, number> = { high: 3, med: 2, low: 1 };
 	// The supervisor triages claims worst-first: needs-attention, then review, then
@@ -13,7 +29,7 @@
 
 	const groups = $derived.by(() => {
 		const by: Record<ClaimState, AtomicClaim[]> = { attention: [], caution: [], unrun: [], clear: [] };
-		for (const c of claims) by[claimState(c)].push(c);
+		for (const c of claims) by[claimState(c, infoById?.[c.id])].push(c);
 		for (const k of ORDER) {
 			by[k].sort((a, b) => {
 				const s = (sevRank[b.riskSeverity ?? ''] ?? 0) - (sevRank[a.riskSeverity ?? ''] ?? 0);
@@ -64,6 +80,11 @@
 												<Icon name={RISK_CATEGORY[c.riskCategory]?.icon ?? 'shield-alert'} size={11} />
 												{SEVERITY[c.riskSeverity]?.label}
 											</Badge>
+										{/if}
+										{#if infoById?.[c.id]?.undermined}
+											<span class="undermined" title="Rests on a weaker premise">
+												<Icon name="triangle-alert" size={11} /> undermined
+											</span>
 										{/if}
 										<span class="pct">{Math.round(c.confidence * 100)}%</span>
 									{/if}
@@ -180,6 +201,15 @@
 		font-family: var(--font-mono);
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
+	}
+	.undermined {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--status-danger-fg);
 	}
 	.badges :global(.go) {
 		color: var(--text-tertiary);

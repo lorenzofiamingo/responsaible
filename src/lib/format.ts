@@ -147,23 +147,39 @@ export const CLAIM_STATE: Record<ClaimState, { label: string; tone: Tone; icon: 
 	clear: { label: 'Clear', tone: 'success', icon: 'circle-check' }
 };
 
-/** Roll a single claim up to its review state (structural subset of AtomicClaim). */
-export function claimState(c: {
-	status: string;
-	verdict: string | null;
-	riskSeverity: string | null;
-}): ClaimState {
+/** Optional cross-claim propagation context (from src/lib/claim-graph.ts): is this
+ *  claim undermined by a premise it rests on, and how badly? */
+export interface ClaimStateInfo {
+	undermined?: boolean;
+	inheritedVerdict?: string | null;
+}
+
+/** Roll a single claim up to its review state (structural subset of AtomicClaim).
+ *  Pass `info` to fold in the reasoning graph: a claim that rests on a broken premise
+ *  is escalated even when it is individually fine, so the summary and work area agree. */
+export function claimState(
+	c: { status: string; verdict: string | null; riskSeverity: string | null },
+	info?: ClaimStateInfo | null
+): ClaimState {
 	if (c.status !== 'analyzed') return 'unrun';
 	if (c.verdict === 'unsupported' || c.verdict === 'flag' || c.riskSeverity === 'high')
 		return 'attention';
+	if (info?.undermined)
+		return info.inheritedVerdict === 'unsupported' || info.inheritedVerdict === 'flag'
+			? 'attention'
+			: 'caution';
 	if (c.verdict === 'weak' || c.riskSeverity === 'med') return 'caution';
 	return 'clear';
 }
 
-/** Count claims by review state — the supervisor's at-a-glance triage roll-up. */
-export function claimRollup(claims: Array<Parameters<typeof claimState>[0]>) {
+/** Count claims by review state — the supervisor's at-a-glance triage roll-up.
+ *  Pass `infoById` (keyed by claim id) to make the rollup reasoning-graph aware. */
+export function claimRollup(
+	claims: Array<{ id?: string; status: string; verdict: string | null; riskSeverity: string | null }>,
+	infoById?: Record<string, ClaimStateInfo> | null
+) {
 	const r = { total: claims.length, attention: 0, caution: 0, unrun: 0, clear: 0 };
-	for (const c of claims) r[claimState(c)]++;
+	for (const c of claims) r[claimState(c, c.id ? infoById?.[c.id] : undefined)]++;
 	return r;
 }
 

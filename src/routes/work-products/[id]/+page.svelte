@@ -8,6 +8,7 @@
 	import SupervisoryActions from '$lib/components/SupervisoryActions.svelte';
 	import TraceTimeline from '$lib/components/TraceTimeline.svelte';
 	import { CAN_SUPERVISE, claimRollup, ROLE } from '$lib/format';
+	import { buildClaimGraph } from '$lib/claim-graph';
 	import { invalidateAll } from '$app/navigation';
 
 	let { data, form } = $props();
@@ -36,9 +37,29 @@
 	const unchecked = $derived(data.citations.filter((c) => c.verifyStatus === 'unchecked').length);
 	const canSupervise = $derived(!!data.user && CAN_SUPERVISE.has(data.user.role));
 
+	// Reasoning-graph propagation: a claim that is individually fine but rests on a
+	// broken premise is escalated in the review rollup, so the summary agrees with
+	// the work area (and a green conclusion can't hide a hallucinated premise).
+	const resultById = $derived(
+		Object.fromEntries(
+			data.claims
+				.filter((c) => c.status === 'analyzed')
+				.map((c) => [c.id, { verdict: c.verdict, confidence: c.confidence }])
+		)
+	);
+	const graph = $derived(buildClaimGraph(data.claims, data.edges, resultById));
+	const infoById = $derived(
+		Object.fromEntries(
+			data.claims.map((c) => {
+				const g = graph.get(c.id);
+				return [c.id, { undermined: g?.undermined ?? false, inheritedVerdict: g?.inheritedVerdict ?? null }];
+			})
+		)
+	);
+
 	// The decision is a single sign-off, but framed by the claim-level review: how
 	// many claims it covers and how many still carry an open finding.
-	const roll = $derived(claimRollup(data.claims));
+	const roll = $derived(claimRollup(data.claims, infoById));
 	const openClaims = $derived(roll.attention + roll.caution);
 
 	let verifyingCites = $state(false);
@@ -63,6 +84,7 @@
 		claims={data.claims}
 		citations={data.citations}
 		risks={data.risks}
+		{infoById}
 		{workspaceHref}
 	/>
 </div>
@@ -78,7 +100,7 @@
 				The supervisor reviews this work claim by claim. Each atomic claim is grouped by its review
 				state — open one in the work area to run the agents against it.
 			</p>
-			<ClaimFindings claims={data.claims} {workspaceHref} />
+			<ClaimFindings claims={data.claims} {infoById} {workspaceHref} />
 		</section>
 
 		<section class="panel">

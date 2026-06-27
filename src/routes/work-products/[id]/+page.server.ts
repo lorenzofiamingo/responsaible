@@ -1,7 +1,7 @@
 import { CAN_SUPERVISE, REASON_REQUIRED } from '$lib/format';
 import { computeHash } from '$lib/server/audit';
 import { dbFrom } from '$lib/server/db/client';
-import { getClaims, getLastHash, getWorkProduct } from '$lib/server/db/queries';
+import { getClaimEdges, getClaims, getLastHash, getWorkProduct } from '$lib/server/db/queries';
 import { supervisoryAction, workProduct } from '$lib/server/db/schema';
 import { error, fail } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
@@ -26,6 +26,7 @@ export const load: PageServerLoad = async ({ params, platform, locals }) => {
 	const data = await getWorkProduct(db, params.id);
 	if (!data) throw error(404, 'Work product not found');
 	const claims = await getClaims(db, params.id);
+	const edges = await getClaimEdges(db, params.id);
 	// `wp` + `user` come from the shared +layout.server.ts.
 	return {
 		actions: data.actions,
@@ -33,6 +34,7 @@ export const load: PageServerLoad = async ({ params, platform, locals }) => {
 		risks: data.risks,
 		audit: data.audit,
 		claims,
+		edges,
 		user: locals.user
 	};
 };

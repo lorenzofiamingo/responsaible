@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ConfidenceMeter from './ConfidenceMeter.svelte';
 	import Icon from './Icon.svelte';
-	import { claimRollup } from '$lib/format';
+	import { claimRollup, type ClaimStateInfo } from '$lib/format';
 	import type { AtomicClaim, Citation, RiskSignal } from '$lib/types';
 
 	let {
@@ -9,16 +9,18 @@
 		claims,
 		citations,
 		risks,
-		workspaceHref
+		workspaceHref,
+		infoById
 	}: {
 		confidence: number;
 		claims: AtomicClaim[];
 		citations: Citation[];
 		risks: RiskSignal[];
 		workspaceHref: string;
+		infoById?: Record<string, ClaimStateInfo>;
 	} = $props();
 
-	const roll = $derived(claimRollup(claims));
+	const roll = $derived(claimRollup(claims, infoById));
 
 	const risk = $derived({
 		high: risks.filter((r) => r.severity === 'high').length,
