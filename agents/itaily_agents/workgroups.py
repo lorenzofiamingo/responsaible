@@ -13,7 +13,25 @@ from typing import Any
 
 DEFAULT_PRESET = "standard_review"
 
-# preset id -> {"label", "figures": [{"role", "model", "effort", "desc"}]}
+# Research tools a figure can carry — mirrors RESEARCH_TOOL in src/lib/workgroups.ts.
+#   cellar    -> EU CELLAR / EUR-Lex authority lookup & grounding.
+#   web       -> open-web research via Perplexity, scoped to allow/deny domains.
+#   knowledge -> the firm's private knowledge base (on-perimeter, open model).
+RESEARCH_TOOL: dict[str, dict[str, str]] = {
+    "cellar": {"label": "CELLAR", "icon": "gavel"},
+    "web": {"label": "Web", "icon": "external-link"},
+    "knowledge": {"label": "Firm knowledge", "icon": "lock"},
+}
+
+# Default allow-list for the web tool in an EU-law console.
+DEFAULT_WEB_ALLOW = [
+    "eur-lex.europa.eu",
+    "curia.europa.eu",
+    "edpb.europa.eu",
+    "eba.europa.eu",
+]
+
+# preset id -> {"label", "figures": [{"role", "model", "effort", "desc", "tools?", "web?"}]}
 PRESETS: dict[str, dict[str, Any]] = {
     "quick_scan": {
         "label": "Quick scan",
@@ -34,6 +52,7 @@ PRESETS: dict[str, dict[str, Any]] = {
                 "model": "gemini-2.5-flash",
                 "effort": "med",
                 "desc": "Confirms the governing EU instrument for the claim.",
+                "tools": ["cellar"],
             },
             {
                 "role": "critic",
@@ -51,6 +70,7 @@ PRESETS: dict[str, dict[str, Any]] = {
                 "model": "gemini-2.5-pro",
                 "effort": "high",
                 "desc": "Exhaustively searches CELLAR for every authority the claim relies on.",
+                "tools": ["cellar"],
             },
             {
                 "role": "drafter",
@@ -66,7 +86,94 @@ PRESETS: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    "web_augmented_audit": {
+        "label": "Web-augmented audit",
+        "figures": [
+            {
+                "role": "research",
+                "model": "gemini-2.5-pro",
+                "effort": "high",
+                "desc": "Searches & verifies every EU authority the claim relies on in CELLAR.",
+                "tools": ["cellar"],
+            },
+            {
+                "role": "research",
+                "model": "claude-sonnet",
+                "effort": "med",
+                "desc": "Corroborates with targeted open-web research on trusted domains.",
+                "tools": ["web"],
+                "web": {"allow": list(DEFAULT_WEB_ALLOW), "deny": []},
+            },
+            {
+                "role": "critic",
+                "model": "claude-opus-4-8",
+                "effort": "high",
+                "desc": "Adversarially re-checks every CELEX resolves and stress-tests jurisdiction/deadline.",
+            },
+        ],
+    },
 }
+
+# The palette of ready-made figures the supervisor can drop into a work group —
+# three researchers pre-tuned to excel in their field (each wired to one tool), plus
+# the generic drafter / critic. Mirrors FIGURE_PRESETS in src/lib/workgroups.ts.
+FIGURE_PRESETS: dict[str, dict[str, Any]] = {
+    "cellar_researcher": {
+        "label": "CELLAR researcher",
+        "icon": "gavel",
+        "figure": {
+            "role": "research",
+            "model": "gemini-2.5-pro",
+            "effort": "high",
+            "desc": "Searches & verifies every EU authority the claim relies on in CELLAR.",
+            "tools": ["cellar"],
+        },
+    },
+    "web_researcher": {
+        "label": "Web researcher",
+        "icon": "external-link",
+        "figure": {
+            "role": "research",
+            "model": "claude-sonnet",
+            "effort": "med",
+            "desc": "Runs targeted open-web research via Perplexity on trusted domains.",
+            "tools": ["web"],
+            "web": {"allow": list(DEFAULT_WEB_ALLOW), "deny": []},
+        },
+    },
+    "knowledge_researcher": {
+        "label": "Knowledge researcher",
+        "icon": "lock",
+        "figure": {
+            "role": "research",
+            "model": "nemotron",
+            "effort": "med",
+            "desc": "Consults the firm's private knowledge base on a self-hostable open model.",
+            "tools": ["knowledge"],
+        },
+    },
+    "drafter": {
+        "label": "Drafter",
+        "icon": "pencil",
+        "figure": {
+            "role": "drafter",
+            "model": "claude-opus-4-8",
+            "effort": "high",
+            "desc": "Re-states the claim and pins each [n] to an article locator.",
+        },
+    },
+    "critic": {
+        "label": "Critic",
+        "icon": "shield-alert",
+        "figure": {
+            "role": "critic",
+            "model": "claude-sonnet",
+            "effort": "med",
+            "desc": "Re-verifies the citation resolves and rates support + risk.",
+        },
+    },
+}
+
 
 _MODAL_OBLIGATION = re.compile(r"\b(shall|must|is required to|may not|prohibited|obliged)\b", re.IGNORECASE)
 _CITATION_MARKER = re.compile(r"\[\d+\]")
@@ -87,15 +194,17 @@ def figure_trace_for(preset_id: str, summary: str = "") -> list[dict[str, Any]]:
     preset = PRESETS.get(preset_id, PRESETS[DEFAULT_PRESET])
     trace = []
     for f in preset["figures"]:
-        kind = "retrieve" if f["role"] == "research" else "draft" if f["role"] == "drafter" else "critique"
-        trace.append(
-            {
-                "role": f["role"],
-                "model": f["model"],
-                "effort": f["effort"],
-                "kind": kind,
-                "summary": summary if f["role"] == "critic" and summary else f["desc"],
-                "ms": 150 + {"low": 1, "med": 2, "high": 3}[f["effort"]] * 120,
-            }
-        )
+        tool = (f.get("tools") or [None])[0] if f["role"] == "research" else None
+        kind = "search" if tool in ("web",) else "retrieve" if f["role"] == "research" else "draft" if f["role"] == "drafter" else "critique"
+        step: dict[str, Any] = {
+            "role": f["role"],
+            "model": f["model"],
+            "effort": f["effort"],
+            "kind": kind,
+            "summary": summary if f["role"] == "critic" and summary else f["desc"],
+            "ms": 150 + {"low": 1, "med": 2, "high": 3}[f["effort"]] * 120,
+        }
+        if tool:
+            step["tool"] = tool
+        trace.append(step)
     return trace

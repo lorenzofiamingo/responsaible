@@ -17,13 +17,22 @@ ADK API points to VERIFY against your installed version (see README):
 
 from __future__ import annotations
 
+import os
+import sys
+
 # VERIFY: these import paths are the documented ADK 1.x surface. Newer ADK may
 # also expose ``from google.adk import Agent`` (alias of LlmAgent). If an import
 # fails, check `python -c "import google.adk, inspect; help(google.adk)"`.
 from google.adk.agents import LlmAgent, SequentialAgent
 
-from .models import get_model
-from .tools import cellar_fetch, cellar_search, celex_from_cite
+from .models import get_model, get_open_model
+from .tools import (
+    cellar_fetch,
+    cellar_search,
+    celex_from_cite,
+    firm_knowledge_search,
+    web_search,
+)
 
 # --- shared output keys (also read back by run_seed.py) ---------------------------
 
@@ -33,6 +42,37 @@ CLAIMS_OUTPUT_KEY = "claims"
 CLAIM_EDGES_OUTPUT_KEY = "claim_edges"
 CLAIM_ANALYSES_OUTPUT_KEY = "claim_analyses"
 CRITIC_OUTPUT_KEY = "critique"
+WEB_RESEARCH_OUTPUT_KEY = "web_findings"
+KNOWLEDGE_OUTPUT_KEY = "firm_knowledge"
+
+
+def _truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def build_cellar_toolset():
+    """The CELLAR tools for the research agent.
+
+    Default: in-process FunctionTools (zero setup, works offline immediately).
+    Opt-in (``ITAILY_CELLAR_MCP=1``): consume the standalone CELLAR MCP server via
+    ADK's ``MCPToolset`` — the same capability exposed over the Model Context
+    Protocol, demonstrating the agent-as-MCP-client paradigm.
+    """
+    if not _truthy("ITAILY_CELLAR_MCP"):
+        return [cellar_search, cellar_fetch, celex_from_cite]
+
+    # Lazy import so a default run never requires the `mcp` package. VERIFY the
+    # exact symbols against your installed ADK (mcp_tool surface moved across 1.x).
+    from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+
+    return [
+        MCPToolset(
+            connection_params=StdioServerParameters(
+                command=sys.executable,
+                args=["-m", "itaily_agents.mcp_cellar_server"],
+            )
+        )
+    ]
 
 # Common domain framing prepended (conceptually) to every agent. EU law only.
 _DOMAIN_PREAMBLE = (
@@ -50,8 +90,9 @@ def build_research_agent() -> LlmAgent:
     return LlmAgent(
         name="research",
         model=get_model(),
-        # Plain functions in `tools` are auto-wrapped as FunctionTools by ADK.
-        tools=[cellar_search, cellar_fetch, celex_from_cite],
+        # CELLAR tools — in-process functions, or the CELLAR MCP server when
+        # ITAILY_CELLAR_MCP=1 (see build_cellar_toolset).
+        tools=build_cellar_toolset(),
         output_key=RESEARCH_OUTPUT_KEY,
         instruction=(
             f"{_DOMAIN_PREAMBLE}\n\n"
@@ -210,24 +251,79 @@ def build_claim_analyzer_agent() -> LlmAgent:
     )
 
 
+def build_web_research_agent() -> LlmAgent:
+    """Optional Agent: corroborate the CELLAR research with scoped open-web sources.
+
+    Uses the Perplexity-backed ``web_search`` tool, restricted to trusted domains.
+    Included only when ``ITAILY_ENABLE_WEB=1`` (it needs PERPLEXITY_API_KEY)."""
+    return LlmAgent(
+        name="web_research",
+        model=get_model(),
+        tools=[web_search],
+        output_key=WEB_RESEARCH_OUTPUT_KEY,
+        instruction=(
+            f"{_DOMAIN_PREAMBLE}\n\n"
+            "ROLE: Open-web corroboration. You are given the matter prompt and the "
+            f"CELLAR research findings (state key '{RESEARCH_OUTPUT_KEY}'). Call "
+            "`web_search` to corroborate the governing authorities and surface "
+            "regulator guidance, restricting to trusted domains such as "
+            "'eur-lex.europa.eu,curia.europa.eu,edpb.europa.eu'. Treat the open web "
+            "as secondary to CELLAR; never let it override a non-resolving CELEX.\n"
+            "Return ONLY JSON: {\"corroboration\": str, \"sources\": "
+            "[{\"title\": str, \"url\": str}], \"notes\": str}."
+        ),
+    )
+
+
+def build_knowledge_research_agent() -> LlmAgent:
+    """Optional Agent: consult the firm's PRIVATE knowledge base on an OPEN model.
+
+    Retrieval (``firm_knowledge_search``) is on-perimeter and the model is Nemotron
+    via NIM (``get_open_model``), so confidential firm material never leaves the
+    boundary. Included only when ``ITAILY_ENABLE_KNOWLEDGE=1``."""
+    return LlmAgent(
+        name="knowledge_research",
+        # Open, self-hostable model — privacy requirement for confidential input.
+        model=get_open_model(),
+        tools=[firm_knowledge_search],
+        output_key=KNOWLEDGE_OUTPUT_KEY,
+        instruction=(
+            f"{_DOMAIN_PREAMBLE}\n\n"
+            "ROLE: Firm knowledge. The matter may touch the firm's own precedents and "
+            "playbooks. Call `firm_knowledge_search` with the key topics to retrieve "
+            "relevant internal documents, then summarise how they bear on the matter. "
+            "This material is CONFIDENTIAL and PRIVILEGED: inform the work, but do not "
+            "reproduce it verbatim, and never send it to any external service.\n"
+            "Return ONLY JSON: {\"applicable\": bool, \"guidance\": str, \"documents\": "
+            "[{\"title\": str, \"ref\": str}]}."
+        ),
+    )
+
+
 def build_pipeline() -> SequentialAgent:
     """Compose the agents into one ordered pipeline.
 
     Returns a ``SequentialAgent`` whose ``run_async`` (driven by a Runner in
-    run_seed.py) emits a single event stream covering research -> draft ->
-    claim-split -> per-claim analysis -> critique.
+    run_seed.py) emits a single event stream covering research -> (web) ->
+    (firm knowledge) -> draft -> claim-split -> per-claim analysis -> critique.
+
+    The optional web / firm-knowledge research agents are inserted right after the
+    CELLAR researcher when enabled via env (they need extra keys), so the default
+    run stays fully functional with just the Gemini/Claude credentials.
     """
-    return SequentialAgent(
-        name="itaily_legal_pipeline",
-        sub_agents=[
-            build_research_agent(),
-            build_drafter_agent(),
-            build_claim_splitter_agent(),
-            build_claim_grapher_agent(),
-            build_claim_analyzer_agent(),
-            build_critic_agent(),
-        ],
-    )
+    sub_agents = [build_research_agent()]
+    if _truthy("ITAILY_ENABLE_WEB"):
+        sub_agents.append(build_web_research_agent())
+    if _truthy("ITAILY_ENABLE_KNOWLEDGE"):
+        sub_agents.append(build_knowledge_research_agent())
+    sub_agents += [
+        build_drafter_agent(),
+        build_claim_splitter_agent(),
+        build_claim_grapher_agent(),
+        build_claim_analyzer_agent(),
+        build_critic_agent(),
+    ]
+    return SequentialAgent(name="itaily_legal_pipeline", sub_agents=sub_agents)
 
 
 # Module-level instance. ADK's `adk web` / `adk run` autodiscovery looks for a

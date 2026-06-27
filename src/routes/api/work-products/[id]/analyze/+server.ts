@@ -3,9 +3,16 @@ import { analyzeClaimLive } from '$lib/server/analyze';
 import { dbFrom } from '$lib/server/db/client';
 import { getClaims, recordClaimRun, type ClaimRunUpdate } from '$lib/server/db/queries';
 import { citation } from '$lib/server/db/schema';
-import type { AtomicClaim } from '$lib/server/db/schema';
-import { resolveWorkGroup, type Figure, type PresetId, type WorkGroup } from '$lib/workgroups';
-import type { FigureTrace } from '$lib/types';
+import type { AtomicClaim, Citation } from '$lib/server/db/schema';
+import {
+	figureTools,
+	resolveWorkGroup,
+	type Figure,
+	type PresetId,
+	type ResearchTool,
+	type WorkGroup
+} from '$lib/workgroups';
+import type { FigureTrace, TraceSource } from '$lib/types';
 import { json } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
@@ -22,23 +29,50 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const effortWeight = { low: 1, med: 2, high: 3 } as const;
 
 /** A plausible per-figure trace for the seeded fallback (no live call was made). */
-function synthFigureTrace(group: WorkGroup, claim: AtomicClaim) {
+function synthFigureTrace(group: WorkGroup, claim: AtomicClaim, docCitations: Citation[]): FigureTrace[] {
 	const markers = claim.citationMarkers ?? [];
-	return group.figures.map((f) => ({
-		role: f.role,
-		model: f.model,
-		effort: f.effort,
-		kind: f.role === 'research' ? 'retrieve' : f.role === 'drafter' ? 'draft' : 'critique',
-		summary:
-			f.role === 'research'
-				? markers.length
-					? `Re-checked ${markers.length} cited authority(ies) from the seeded grounding.`
-					: 'No inline authority to ground for this claim.'
-				: f.role === 'critic'
-					? claim.analysisSummary || 'Reviewed the claim against its seeded baseline.'
-					: f.desc,
-		ms: 150 + effortWeight[f.effort] * 120
-	}));
+	const cellarSources: TraceSource[] = docCitations
+		.filter((c) => c.marker != null && markers.includes(c.marker))
+		.map((c) => ({ title: `[${c.marker}] ${c.title}`, url: c.sourceUrl ?? undefined }));
+	const ms = (f: Figure) => 150 + effortWeight[f.effort] * 120;
+
+	const out: FigureTrace[] = [];
+	for (const f of group.figures) {
+		if (f.role === 'research') {
+			const tools = figureTools(f).length ? figureTools(f) : (['cellar'] as ResearchTool[]);
+			for (const t of tools) {
+				if (t === 'web') {
+					out.push({ role: f.role, model: f.model, effort: f.effort, kind: 'search', tool: t, summary: 'Open-web research is skipped in the offline/seeded run.', ms: ms(f) });
+				} else if (t === 'knowledge') {
+					out.push({ role: f.role, model: f.model, effort: f.effort, kind: 'retrieve', tool: t, summary: 'Firm knowledge is consulted only on a live run.', ms: ms(f) });
+				} else {
+					out.push({
+						role: f.role,
+						model: f.model,
+						effort: f.effort,
+						kind: 'retrieve',
+						tool: t,
+						summary: markers.length
+							? `Re-checked ${markers.length} cited authority(ies) from the seeded grounding.`
+							: 'No inline authority to ground for this claim.',
+						sources: cellarSources,
+						ms: ms(f)
+					});
+				}
+			}
+			continue;
+		}
+		out.push({
+			role: f.role,
+			model: f.model,
+			effort: f.effort,
+			kind: f.role === 'drafter' ? 'draft' : 'critique',
+			summary:
+				f.role === 'critic' ? claim.analysisSummary || 'Reviewed the claim against its seeded baseline.' : f.desc,
+			ms: ms(f)
+		});
+	}
+	return out;
 }
 
 export const POST: RequestHandler = async ({ request, params, platform, locals }) => {
@@ -74,11 +108,11 @@ export const POST: RequestHandler = async ({ request, params, platform, locals }
 		let riskSeverity = claim.riskSeverity;
 		let riskRationale = claim.riskRationale;
 		let citationMarkers = claim.citationMarkers ?? [];
-		let figureTrace: FigureTrace[] = synthFigureTrace(group, claim);
+		let figureTrace: FigureTrace[] = synthFigureTrace(group, claim, docCitations);
 
 		if (!forceOffline && env) {
 			try {
-				const live = await analyzeClaimLive({ claimText: claim.text, docCitations, group, env, kv });
+				const live = await analyzeClaimLive({ claimText: claim.text, docCitations, group, env, kv, db });
 				source = 'live';
 				verdict = live.verdict;
 				confidence = live.confidence;

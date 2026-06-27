@@ -245,6 +245,30 @@ export const supervisoryAction = sqliteTable(
 	(t) => [index('sa_wp_idx').on(t.workProductId), index('sa_created_idx').on(t.createdAt)]
 );
 
+/**
+ * The firm's private knowledge base — internal memos, precedents, and playbook
+ * clauses the Knowledge researcher figure draws on. This is confidential / privileged
+ * material: retrieval is lexical and on-perimeter (no external embedding call), and
+ * the figure reasons over it with an open, self-hostable model so nothing leaves.
+ */
+export const firmKnowledge = sqliteTable(
+	'firm_knowledge',
+	{
+		id: text('id').primaryKey(),
+		title: text('title').notNull(),
+		/** memo | precedent | playbook | guidance — coarse bucket for display. */
+		category: text('category').notNull().default('memo'),
+		/** Full text searched lexically at runtime. */
+		body: text('body').notNull().default(''),
+		/** Space/comma-separated topical tags to boost lexical matches. */
+		tags: text('tags').notNull().default(''),
+		/** Internal reference shown in the trace (no public URL — it is private). */
+		sourceRef: text('source_ref').notNull().default(''),
+		createdAt: text('created_at').notNull()
+	},
+	(t) => [index('fk_category_idx').on(t.category)]
+);
+
 export type WorkProduct = typeof workProduct.$inferSelect;
 export type AgentAction = typeof agentAction.$inferSelect;
 export type Citation = typeof citation.$inferSelect;
@@ -252,3 +276,4 @@ export type RiskSignal = typeof riskSignal.$inferSelect;
 export type AtomicClaim = typeof atomicClaim.$inferSelect;
 export type ClaimEdge = typeof claimEdge.$inferSelect;
 export type SupervisoryAction = typeof supervisoryAction.$inferSelect;
+export type FirmKnowledge = typeof firmKnowledge.$inferSelect;

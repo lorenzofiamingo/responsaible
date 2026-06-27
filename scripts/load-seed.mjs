@@ -9,8 +9,8 @@
 // one chain.
 
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -26,6 +26,23 @@ const auditInput = (prev, r) =>
 const q = (v) => (v === null || v === undefined ? 'NULL' : `'${String(v).replace(/'/g, "''")}'`);
 const b = (v) => (v ? 1 : 0);
 const json = (v) => (v === null || v === undefined ? 'NULL' : q(JSON.stringify(v)));
+
+/** Minimal `---`-delimited frontmatter parser (no YAML dep) for the firm corpus. */
+function parseFrontmatter(raw) {
+	const meta = {};
+	let body = raw;
+	const m = /^---\n([\s\S]*?)\n---\n?/.exec(raw);
+	if (m) {
+		for (const line of m[1].split('\n')) {
+			const idx = line.indexOf(':');
+			if (idx === -1) continue;
+			const key = line.slice(0, idx).trim();
+			if (key) meta[key] = line.slice(idx + 1).trim();
+		}
+		body = raw.slice(m[0].length);
+	}
+	return { meta, body: body.trim() };
+}
 
 // --- atomic-claim derivation (stop-gap until the ADK claim-splitter writes
 // explicit `claims`; keeps offsets exact and mirrors autoPreset in src/lib/workgroups.ts) ---
@@ -152,7 +169,8 @@ for (const t of [
 	'agent_action',
 	'claim_edge',
 	'atomic_claim',
-	'work_product'
+	'work_product',
+	'firm_knowledge'
 ]) {
 	lines.push(`DELETE FROM ${t};`);
 }
@@ -338,11 +356,35 @@ for (const s of audits) {
 	prev = hash;
 }
 
+// The firm's private knowledge base — markdown docs under data/seed/firm-knowledge/.
+const fkDir = resolve(seedDir, 'firm-knowledge');
+let fkCount = 0;
+if (existsSync(fkDir)) {
+	for (const file of readdirSync(fkDir).filter((f) => f.endsWith('.md')).sort()) {
+		const { meta, body } = parseFrontmatter(readFileSync(resolve(fkDir, file), 'utf8'));
+		const id = meta.id || basename(file, '.md');
+		lines.push(
+			`INSERT INTO firm_knowledge (id, title, category, body, tags, source_ref, created_at) VALUES (` +
+				[
+					q(id),
+					q(meta.title || id),
+					q(meta.category || 'memo'),
+					q(body),
+					q(meta.tags || ''),
+					q(meta.ref || meta.sourceRef || ''),
+					q(meta.date || meta.createdAt || '2026-01-01T00:00:00Z')
+				].join(', ') +
+				');'
+		);
+		fkCount++;
+	}
+}
+
 lines.push('PRAGMA foreign_keys=ON;');
 lines.push('');
 
 const out = resolve(seedDir, 'seed.sql');
 writeFileSync(out, lines.join('\n'), 'utf8');
 console.log(
-	`Wrote ${out}\n  work_products: ${items.length}\n  audit actions: ${audits.length}\n  last chain hash: ${prev.slice(0, 12)}…`
+	`Wrote ${out}\n  work_products: ${items.length}\n  firm_knowledge: ${fkCount}\n  audit actions: ${audits.length}\n  last chain hash: ${prev.slice(0, 12)}…`
 );

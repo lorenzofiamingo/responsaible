@@ -30,6 +30,16 @@ declare global {
 				/** Live per-claim analysis (optional). Absent ⇒ seeded fallback. */
 				ANTHROPIC_API_KEY?: string;
 				GOOGLE_API_KEY?: string;
+				/** Web researcher's open-web tool (Perplexity). Absent ⇒ web step skipped. */
+				PERPLEXITY_API_KEY?: string;
+				/** Override the Perplexity model id (default 'sonar'). */
+				PERPLEXITY_MODEL?: string;
+				/** Knowledge researcher's open model via NVIDIA NIM. Absent ⇒ seeded fallback. */
+				NVIDIA_NIM_API_KEY?: string;
+				/** NIM endpoint — point at a self-hosted NIM to keep firm data on-perimeter. */
+				NVIDIA_NIM_BASE_URL?: string;
+				/** Override the Nemotron model id served by NIM. */
+				NEMOTRON_MODEL?: string;
 			};
 		}
 	}

@@ -7,7 +7,7 @@
 	import SourceCard from '$lib/components/SourceCard.svelte';
 	import type { ClaimGraphInfo } from '$lib/claim-graph';
 	import { ANALYSIS_SOURCE, CLAIM_KIND, CLAIM_RELATION, TRACE_KIND, VERDICT } from '$lib/format';
-	import { FIGURE_ROLE, MODELS, type WorkGroup } from '$lib/workgroups';
+	import { FIGURE_ROLE, MODELS, RESEARCH_TOOL, type ResearchTool, type WorkGroup } from '$lib/workgroups';
 	import type { AtomicClaim, Citation, ClaimEdge, ClaimRunResult } from '$lib/types';
 	import WorkGroupConfigurator from './WorkGroupConfigurator.svelte';
 
@@ -137,14 +137,31 @@
 						<h4><Icon name="git-branch" size={13} /> Work group trace</h4>
 						<ul class="trace">
 							{#each result.figureTrace as f, i (i)}
+								{@const toolMeta = f.tool ? RESEARCH_TOOL[f.tool as ResearchTool] : null}
 								<li>
-									<Icon name={TRACE_KIND[f.kind]?.icon ?? 'brain'} size={13} />
+									<Icon name={toolMeta?.icon ?? TRACE_KIND[f.kind]?.icon ?? 'brain'} size={13} />
 									<div class="tbody">
 										<span class="tline">
 											<strong>{FIGURE_ROLE[f.role as 'research']?.label ?? f.role}</strong>
+											{#if toolMeta}<span class="tool-badge"><Icon name={toolMeta.icon} size={10} /> {toolMeta.label}</span>{/if}
 											<span class="tmeta">{MODELS[f.model as 'claude-sonnet']?.label ?? f.model} · {f.effort} · {f.ms}ms</span>
 										</span>
 										<span class="tsum">{f.summary}</span>
+										{#if f.sources?.length}
+											<ul class="tsources">
+												{#each f.sources as s, si (si)}
+													<li>
+														{#if s.url}
+															<a href={s.url} target="_blank" rel="noopener noreferrer">
+																<Icon name="external-link" size={10} /> {s.title}
+															</a>
+														{:else}
+															<span class="priv"><Icon name="lock" size={10} /> {s.title}</span>
+														{/if}
+													</li>
+												{/each}
+											</ul>
+										{/if}
 									</div>
 								</li>
 							{/each}
@@ -405,6 +422,48 @@
 		font-size: var(--text-xs);
 		color: var(--text-secondary);
 		line-height: var(--leading-snug);
+	}
+	.tool-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
+		padding: 1px 6px;
+		font-family: var(--font-mono);
+		font-size: 9px;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--text-secondary);
+		background: var(--surface-sunken);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-xs);
+	}
+	.tsources {
+		list-style: none;
+		margin: 4px 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.tsources li {
+		display: block;
+	}
+	.tsources a,
+	.tsources .priv {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 11px;
+		color: var(--text-tertiary);
+		text-decoration: none;
+	}
+	.tsources a:hover {
+		color: var(--color-accent);
+		text-decoration: underline;
+	}
+	.tsources .priv {
+		color: var(--text-tertiary);
+		font-style: italic;
 	}
 	.sources {
 		display: flex;

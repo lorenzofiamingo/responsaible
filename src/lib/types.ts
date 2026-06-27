@@ -133,6 +133,19 @@ export interface FigureTrace {
 	summary: string;
 	/** Wall-clock the figure took, ms. */
 	ms: number;
+	/** Which research tool produced this step: cellar | web | knowledge. */
+	tool?: string;
+	/** Sources the tool surfaced (authorities, web pages, or firm documents). */
+	sources?: TraceSource[];
+}
+
+/** A source a research tool surfaced — a CELLAR authority, web page, or firm doc. */
+export interface TraceSource {
+	title: string;
+	/** External link (EUR-Lex / web). Absent for private firm-knowledge sources. */
+	url?: string;
+	/** Internal reference (e.g. firm-knowledge doc id) when there is no public URL. */
+	ref?: string;
 }
 
 /** An atomic claim: a verifiable text unit split out of the work-product body. */

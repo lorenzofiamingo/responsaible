@@ -16,9 +16,28 @@ export type ModelId =
 	| 'gemini-2.5-pro'
 	| 'claude-haiku'
 	| 'claude-sonnet'
-	| 'claude-opus-4-8';
+	| 'claude-opus-4-8'
+	| 'nemotron';
 
-export type PresetId = 'quick_scan' | 'standard_review' | 'authority_deep_dive';
+export type PresetId = 'quick_scan' | 'standard_review' | 'authority_deep_dive' | 'web_augmented_audit';
+
+/**
+ * A research figure carries one or more TOOLS — the actual capability it uses to
+ * "research". Each maps onto a real retrieval surface:
+ *   cellar    → EU CELLAR / EUR-Lex (authority lookup & grounding).
+ *   web       → open-web research via Perplexity, scoped to allow/deny domains.
+ *   knowledge → the firm's own private knowledge base (kept on-perimeter).
+ * Drafter / critic figures take no tools.
+ */
+export type ResearchTool = 'cellar' | 'web' | 'knowledge';
+
+/** Per-figure config for the web tool — the domains Perplexity may / may not use. */
+export interface WebToolConfig {
+	/** Domains the search is restricted to (empty ⇒ open web). */
+	allow: string[];
+	/** Domains explicitly excluded (sent to Perplexity as `-domain`). */
+	deny: string[];
+}
 
 export interface Figure {
 	role: FigureRole;
@@ -26,6 +45,10 @@ export interface Figure {
 	effort: Effort;
 	/** One-line description of what this figure does for the claim. */
 	desc: string;
+	/** Tools a research figure is equipped with. Omitted/empty ⇒ grounding only. */
+	tools?: ResearchTool[];
+	/** Domain filters for the web tool (only meaningful when tools includes 'web'). */
+	web?: WebToolConfig;
 }
 
 export interface WorkGroup {
@@ -37,13 +60,22 @@ export interface WorkGroup {
 
 export const MODELS: Record<
 	ModelId,
-	{ label: string; provider: 'google' | 'anthropic'; tier: 'small' | 'medium' | 'large' }
+	{
+		label: string;
+		provider: 'google' | 'anthropic' | 'nvidia';
+		tier: 'small' | 'medium' | 'large';
+		/** Open weights, self-hostable — keeps confidential input on-perimeter. */
+		open?: boolean;
+	}
 > = {
 	'gemini-2.5-flash': { label: 'Gemini 2.5 Flash', provider: 'google', tier: 'small' },
 	'gemini-2.5-pro': { label: 'Gemini 2.5 Pro', provider: 'google', tier: 'large' },
 	'claude-haiku': { label: 'Claude Haiku', provider: 'anthropic', tier: 'small' },
 	'claude-sonnet': { label: 'Claude Sonnet', provider: 'anthropic', tier: 'medium' },
-	'claude-opus-4-8': { label: 'Claude Opus 4.8', provider: 'anthropic', tier: 'large' }
+	'claude-opus-4-8': { label: 'Claude Opus 4.8', provider: 'anthropic', tier: 'large' },
+	// Open-weights model served via NVIDIA NIM (OpenAI-compatible). Self-hostable,
+	// so the privacy-sensitive firm-knowledge figure can keep its input private.
+	nemotron: { label: 'NVIDIA Nemotron', provider: 'nvidia', tier: 'large', open: true }
 };
 
 export const MODEL_IDS = Object.keys(MODELS) as ModelId[];
@@ -58,6 +90,35 @@ export const FIGURE_ROLE: Record<FigureRole, { label: string; icon: string }> = 
 /** Roles a figure can take, in display order — for the custom work-group editor. */
 export const FIGURE_ROLE_IDS = Object.keys(FIGURE_ROLE) as FigureRole[];
 
+/** Display metadata for each research tool — drives the figure palette + trace badges. */
+export const RESEARCH_TOOL: Record<ResearchTool, { label: string; icon: string; blurb: string }> = {
+	cellar: {
+		label: 'CELLAR',
+		icon: 'gavel',
+		blurb: 'Searches & verifies EU authorities in the official CELLAR / EUR-Lex corpus.'
+	},
+	web: {
+		label: 'Web',
+		icon: 'external-link',
+		blurb: 'Open-web research via Perplexity, scoped to trusted domains you choose.'
+	},
+	knowledge: {
+		label: 'Firm knowledge',
+		icon: 'lock',
+		blurb: "Draws on the firm's private knowledge base — stays on-perimeter (open model)."
+	}
+};
+
+export const RESEARCH_TOOL_IDS = Object.keys(RESEARCH_TOOL) as ResearchTool[];
+
+/** A sensible default allow-list for the web tool in an EU-law console. */
+export const DEFAULT_WEB_ALLOW = [
+	'eur-lex.europa.eu',
+	'curia.europa.eu',
+	'edpb.europa.eu',
+	'eba.europa.eu'
+];
+
 /** Soft cap on how many figures a custom work group may hold, to keep a run bounded. */
 export const MAX_FIGURES = 5;
 
@@ -69,6 +130,82 @@ export function newFigure(): Figure {
 		effort: 'med',
 		desc: 'Custom figure added by the supervisor.'
 	};
+}
+
+/**
+ * The palette of ready-made figures the supervisor can drop into a work group —
+ * three researchers pre-tuned to excel in their field (each wired to one tool),
+ * plus the generic drafter / critic. These sit alongside the blank custom figure.
+ */
+export type FigurePresetId =
+	| 'cellar_researcher'
+	| 'web_researcher'
+	| 'knowledge_researcher'
+	| 'drafter'
+	| 'critic';
+
+export const FIGURE_PRESETS: Record<FigurePresetId, { label: string; icon: string; make: () => Figure }> = {
+	cellar_researcher: {
+		label: 'CELLAR researcher',
+		icon: RESEARCH_TOOL.cellar.icon,
+		make: () => ({
+			role: 'research',
+			model: 'gemini-2.5-pro',
+			effort: 'high',
+			desc: 'Searches & verifies every EU authority the claim relies on in CELLAR.',
+			tools: ['cellar']
+		})
+	},
+	web_researcher: {
+		label: 'Web researcher',
+		icon: RESEARCH_TOOL.web.icon,
+		make: () => ({
+			role: 'research',
+			model: 'claude-sonnet',
+			effort: 'med',
+			desc: 'Runs targeted open-web research via Perplexity on trusted domains.',
+			tools: ['web'],
+			web: { allow: [...DEFAULT_WEB_ALLOW], deny: [] }
+		})
+	},
+	knowledge_researcher: {
+		label: 'Knowledge researcher',
+		icon: RESEARCH_TOOL.knowledge.icon,
+		make: () => ({
+			role: 'research',
+			model: 'nemotron',
+			effort: 'med',
+			desc: "Consults the firm's private knowledge base on a self-hostable open model.",
+			tools: ['knowledge']
+		})
+	},
+	drafter: {
+		label: 'Drafter',
+		icon: FIGURE_ROLE.drafter.icon,
+		make: () => ({
+			role: 'drafter',
+			model: 'claude-opus-4-8',
+			effort: 'high',
+			desc: 'Re-states the claim and pins each [n] to an article locator.'
+		})
+	},
+	critic: {
+		label: 'Critic',
+		icon: FIGURE_ROLE.critic.icon,
+		make: () => ({
+			role: 'critic',
+			model: 'claude-sonnet',
+			effort: 'med',
+			desc: 'Re-verifies the citation resolves and rates support + risk.'
+		})
+	}
+};
+
+export const FIGURE_PRESET_IDS = Object.keys(FIGURE_PRESETS) as FigurePresetId[];
+
+/** The tools a figure actually carries (only research figures do). */
+export function figureTools(fig: Figure): ResearchTool[] {
+	return fig.role === 'research' ? (fig.tools ?? []) : [];
 }
 
 export const PRESETS: Record<PresetId, WorkGroup> = {
@@ -92,7 +229,8 @@ export const PRESETS: Record<PresetId, WorkGroup> = {
 				role: 'research',
 				model: 'gemini-2.5-flash',
 				effort: 'med',
-				desc: 'Confirms the governing EU instrument for the claim.'
+				desc: 'Confirms the governing EU instrument for the claim.',
+				tools: ['cellar']
 			},
 			{
 				role: 'critic',
@@ -110,13 +248,41 @@ export const PRESETS: Record<PresetId, WorkGroup> = {
 				role: 'research',
 				model: 'gemini-2.5-pro',
 				effort: 'high',
-				desc: 'Exhaustively searches CELLAR for every authority the claim relies on.'
+				desc: 'Exhaustively searches CELLAR for every authority the claim relies on.',
+				tools: ['cellar']
 			},
 			{
 				role: 'drafter',
 				model: 'claude-opus-4-8',
 				effort: 'high',
 				desc: "Re-states the claim and pins each [n] to an article locator."
+			},
+			{
+				role: 'critic',
+				model: 'claude-opus-4-8',
+				effort: 'high',
+				desc: 'Adversarially re-checks every CELEX resolves and stress-tests jurisdiction/deadline.'
+			}
+		]
+	},
+	web_augmented_audit: {
+		id: 'web_augmented_audit',
+		label: 'Web-augmented audit',
+		figures: [
+			{
+				role: 'research',
+				model: 'gemini-2.5-pro',
+				effort: 'high',
+				desc: 'Searches & verifies every EU authority the claim relies on in CELLAR.',
+				tools: ['cellar']
+			},
+			{
+				role: 'research',
+				model: 'claude-sonnet',
+				effort: 'med',
+				desc: 'Corroborates with targeted open-web research on trusted domains.',
+				tools: ['web'],
+				web: { allow: [...DEFAULT_WEB_ALLOW], deny: [] }
 			},
 			{
 				role: 'critic',
@@ -135,7 +301,8 @@ export const PRESET_META: Record<PresetId, { tone: 'neutral' | 'info' | 'accent'
 	{
 		quick_scan: { tone: 'neutral', hint: 'Headings, boilerplate, low-risk text' },
 		standard_review: { tone: 'info', hint: 'Ordinary claims and definitions' },
-		authority_deep_dive: { tone: 'accent', hint: 'Citation-bearing or high-risk claims' }
+		authority_deep_dive: { tone: 'accent', hint: 'Citation-bearing or high-risk claims' },
+		web_augmented_audit: { tone: 'accent', hint: 'High-stakes claims needing open-web corroboration' }
 	};
 
 /** True when the claim text carries a [n] citation marker. */

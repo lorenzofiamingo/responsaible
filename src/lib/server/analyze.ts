@@ -10,10 +10,21 @@
 // Throws on a missing key / fetch error / bad JSON so the caller can fall back to
 // the claim's seeded baseline (keeping the demo fully offline-capable).
 
-import type { Citation, FigureTrace } from '$lib/types';
+import type { Citation, FigureTrace, TraceSource } from '$lib/types';
 import type { KVNamespace } from '@cloudflare/workers-types';
-import { MODELS, type Effort, type Figure, type ModelId, type WorkGroup } from '$lib/workgroups';
+import {
+	MODELS,
+	figureTools,
+	type Effort,
+	type Figure,
+	type ModelId,
+	type ResearchTool,
+	type WorkGroup
+} from '$lib/workgroups';
 import { resolveCelex } from './cellar';
+import { cellarSearch, searchPerplexity, type WebResearch } from './research';
+import { searchFirmKnowledge, type KnowledgeHit } from './knowledge';
+import type { DB } from './db/client';
 
 const DOMAIN_PREAMBLE =
 	'You are part of Itaily, a legal-AI supervision system working ONLY with European Union law ' +
@@ -27,8 +38,13 @@ const API_MODEL: Record<ModelId, string> = {
 	'gemini-2.5-pro': 'gemini-2.5-pro',
 	'claude-haiku': 'claude-haiku-4-5-20251001',
 	'claude-sonnet': 'claude-sonnet-4-6',
-	'claude-opus-4-8': 'claude-opus-4-8'
+	'claude-opus-4-8': 'claude-opus-4-8',
+	// NVIDIA NIM exposes Nemotron under this OpenAI-style id; override via env.
+	nemotron: 'nvidia/llama-3.3-nemotron-super-49b-v1'
 };
+
+/** Default NVIDIA NIM endpoint; point at a self-hosted NIM for true on-prem privacy. */
+const NIM_DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 
 const EFFORT_PARAMS: Record<Effort, { maxTokens: number; temperature: number }> = {
 	low: { maxTokens: 512, temperature: 0.2 },
@@ -45,6 +61,8 @@ export interface AnalyzeInput {
 	group: WorkGroup;
 	env: App.Platform['env'];
 	kv?: KVNamespace;
+	/** Needed by the knowledge tool to read the private firm corpus. */
+	db?: DB;
 }
 
 export interface AnalyzeOutput {
@@ -153,6 +171,37 @@ async function callGoogle(
 	return text;
 }
 
+/** NVIDIA NIM is OpenAI-compatible — used for the open, self-hostable Nemotron path. */
+async function callNvidia(
+	apiModel: string,
+	effort: Effort,
+	system: string,
+	user: string,
+	key: string,
+	baseUrl: string
+): Promise<string> {
+	const { maxTokens, temperature } = EFFORT_PARAMS[effort];
+	const res = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+		body: JSON.stringify({
+			model: apiModel,
+			max_tokens: maxTokens,
+			temperature,
+			messages: [
+				{ role: 'system', content: system },
+				{ role: 'user', content: user }
+			]
+		}),
+		signal: AbortSignal.timeout(20_000)
+	});
+	if (!res.ok) throw new Error(`nvidia ${res.status}: ${(await res.text()).slice(0, 200)}`);
+	const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+	const text = (data.choices?.[0]?.message?.content ?? '').trim();
+	if (!text) throw new Error('nvidia: empty reply');
+	return text;
+}
+
 async function callModel(
 	model: ModelId,
 	effort: Effort,
@@ -161,9 +210,15 @@ async function callModel(
 	env: App.Platform['env']
 ): Promise<string> {
 	const apiModel = API_MODEL[model];
-	if (MODELS[model].provider === 'anthropic') {
+	const provider = MODELS[model].provider;
+	if (provider === 'anthropic') {
 		if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
 		return callAnthropic(apiModel, effort, system, user, env.ANTHROPIC_API_KEY);
+	}
+	if (provider === 'nvidia') {
+		if (!env.NVIDIA_NIM_API_KEY) throw new Error('NVIDIA_NIM_API_KEY not configured');
+		const apiId = env.NEMOTRON_MODEL || apiModel;
+		return callNvidia(apiId, effort, system, user, env.NVIDIA_NIM_API_KEY, env.NVIDIA_NIM_BASE_URL || NIM_DEFAULT_BASE);
 	}
 	if (!env.GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY not configured');
 	return callGoogle(apiModel, effort, system, user, env.GOOGLE_API_KEY);
@@ -174,7 +229,7 @@ async function callModel(
  * reached (caller falls back to the seeded baseline).
  */
 export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutput> {
-	const { claimText, docCitations, group, env, kv } = input;
+	const { claimText, docCitations, group, env, kv, db } = input;
 	const figures = group.figures.length ? group.figures : [{ role: 'critic', model: 'claude-sonnet', effort: 'med', desc: '' } as Figure];
 
 	// 1. Grounding — resolve the CELEX(es) this claim cites against CELLAR.
@@ -190,6 +245,47 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 	);
 	const groundingMs = Date.now() - t0;
 	const resolvedCount = resolutions.filter((r) => r.status === 'verified').length;
+	const groundingSources: TraceSource[] = refCitations.map((c) => ({
+		title: `[${c.marker}] ${c.title}`,
+		url: c.sourceUrl ?? undefined
+	}));
+
+	// 1b. Run the research figures' tools (open-web / extra CELLAR search / firm knowledge).
+	const researchFigures = figures.filter((f) => f.role === 'research');
+	const wantTools = new Set<ResearchTool>();
+	for (const f of researchFigures) {
+		const ts = figureTools(f);
+		(ts.length ? ts : (['cellar'] as ResearchTool[])).forEach((t) => wantTools.add(t));
+	}
+	const webFig = researchFigures.find((f) => figureTools(f).includes('web'));
+
+	let cellarHits: Awaited<ReturnType<typeof cellarSearch>> = null;
+	let cellarSearchMs = 0;
+	let web: WebResearch | null = null;
+	let webMs = 0;
+	let knowledge: KnowledgeHit[] = [];
+	let knowledgeMs = 0;
+
+	// CELLAR keyword search only when the claim cites nothing — to surface the
+	// authority it *should* rely on. Title CONTAINS matches best on a single term.
+	if (wantTools.has('cellar') && refCitations.length === 0) {
+		const kw = (claimText.toLowerCase().match(/[a-z]{5,}/g) ?? []).sort((a, b) => b.length - a.length)[0];
+		if (kw) {
+			const ts = Date.now();
+			cellarHits = await cellarSearch(kw, kv);
+			cellarSearchMs = Date.now() - ts;
+		}
+	}
+	if (wantTools.has('web')) {
+		const ts = Date.now();
+		web = await searchPerplexity(claimText, webFig?.web, env, kv);
+		webMs = Date.now() - ts;
+	}
+	if (wantTools.has('knowledge') && db) {
+		const ts = Date.now();
+		knowledge = await searchFirmKnowledge(db, claimText);
+		knowledgeMs = Date.now() - ts;
+	}
 
 	// 2. Decisive LLM call.
 	const lead = leadFigure(figures);
@@ -202,11 +298,33 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 				.join('\n')
 		: '(this claim cites no authority)';
 
+	// Fold any tool evidence into the prompt so the lead figure reasons over it.
+	const evidence: string[] = [];
+	if (web && (web.answer || web.sources.length)) {
+		evidence.push(
+			`OPEN-WEB RESEARCH (Perplexity, trusted domains):\n${web.answer}` +
+				(web.sources.length ? '\n' + web.sources.map((s) => `- ${s.title} ${s.url ?? ''}`.trim()).join('\n') : '')
+		);
+	}
+	if (cellarHits && cellarHits.length) {
+		evidence.push(
+			`CELLAR SEARCH — candidate authorities:\n` + cellarHits.map((h) => `- ${h.title} (CELEX ${h.celex})`).join('\n')
+		);
+	}
+	if (knowledge.length) {
+		evidence.push(
+			`FIRM KNOWLEDGE (internal & privileged — use to inform, do not quote verbatim):\n` +
+				knowledge.map((k) => `- ${k.title}: ${k.snippet}`).join('\n')
+		);
+	}
+	const evidenceBlock = evidence.length ? `\nADDITIONAL RESEARCH EVIDENCE:\n${evidence.join('\n\n')}\n` : '';
+
 	const user =
 		`Assess this single atomic claim from an EU-law work product.\n\n` +
 		`CLAIM:\n"${claimText}"\n\n` +
-		`CITED AUTHORITIES (with their live CELLAR resolution):\n${citeLines}\n\n` +
-		`Return ONLY a JSON object:\n` +
+		`CITED AUTHORITIES (with their live CELLAR resolution):\n${citeLines}\n` +
+		evidenceBlock +
+		`\nReturn ONLY a JSON object:\n` +
 		`{"verdict":"supported|weak|unsupported|flag","confidence":0.0-1.0,` +
 		`"summary":"one sentence on whether the cited authority supports the claim",` +
 		`"risk":{"category":"hallucination|jurisdiction|missing_authority|conflict|deadline","severity":"low|med|high","rationale":"…"}|null,` +
@@ -226,31 +344,78 @@ export async function analyzeClaimLive(input: AnalyzeInput): Promise<AnalyzeOutp
 	const citationMarkers = Array.isArray(parsed.citationMarkers)
 		? (parsed.citationMarkers as unknown[]).map((n) => Number(n)).filter((n) => Number.isFinite(n))
 		: refMarkers;
+	const verdictSummary = String(parsed.summary ?? 'Rated the claim.');
 
-	// 3. Per-figure trace — attribute grounding to research, the verdict to the lead.
-	const figureTrace: FigureTrace[] = figures.map((f) => {
-		if (f.role === 'research') {
+	// 3. Per-figure trace — each research figure shows the tool(s) it used; the lead
+	// figure carries the verdict.
+	function researchStep(f: Figure, tool: ResearchTool): FigureTrace {
+		const base = { role: f.role, model: f.model, effort: f.effort, tool };
+		if (tool === 'web') {
 			return {
-				role: f.role,
-				model: f.model,
-				effort: f.effort,
+				...base,
+				kind: 'search',
+				summary: web?.answer
+					? web.answer.slice(0, 200)
+					: web
+						? 'Open-web research returned no usable sources.'
+						: 'Web research unavailable (no key / offline).',
+				sources: web?.sources ?? [],
+				ms: webMs
+			};
+		}
+		if (tool === 'knowledge') {
+			return {
+				...base,
 				kind: 'retrieve',
-				summary: refCitations.length
-					? `Grounded ${refCitations.length} citation(s) against EU CELLAR — ${resolvedCount} resolved.`
-					: 'No inline authority to ground for this claim.',
+				summary: knowledge.length
+					? `Consulted ${knowledge.length} private firm document(s) on a self-hostable model.`
+					: 'No matching firm knowledge found.',
+				sources: knowledge.map((k) => ({ title: k.title, ref: k.ref })),
+				ms: knowledgeMs
+			};
+		}
+		// cellar
+		if (refCitations.length) {
+			return {
+				...base,
+				kind: 'retrieve',
+				summary: `Grounded ${refCitations.length} citation(s) against EU CELLAR — ${resolvedCount} resolved.`,
+				sources: groundingSources,
 				ms: groundingMs
 			};
 		}
-		const isLead = f.role === lead.role && f.model === lead.model;
-		return {
+		if (cellarHits && cellarHits.length) {
+			return {
+				...base,
+				kind: 'search',
+				summary: `Searched CELLAR — surfaced ${cellarHits.length} candidate authority(ies).`,
+				sources: cellarHits.map((h) => ({ title: h.title, url: h.url })),
+				ms: cellarSearchMs || groundingMs
+			};
+		}
+		return { ...base, kind: 'retrieve', summary: 'No inline authority to ground for this claim.', ms: groundingMs };
+	}
+
+	const figureTrace: FigureTrace[] = [];
+	for (const f of figures) {
+		const isLead = f === lead;
+		if (f.role === 'research') {
+			const tools = figureTools(f).length ? figureTools(f) : (['cellar'] as ResearchTool[]);
+			for (const t of tools) figureTrace.push(researchStep(f, t));
+			if (isLead) {
+				figureTrace.push({ role: f.role, model: f.model, effort: f.effort, kind: 'reason', summary: verdictSummary, ms: llmMs });
+			}
+			continue;
+		}
+		figureTrace.push({
 			role: f.role,
 			model: f.model,
 			effort: f.effort,
 			kind: f.role === 'critic' ? 'critique' : 'draft',
-			summary: isLead ? String(parsed.summary ?? 'Rated the claim.') : f.desc,
+			summary: isLead ? verdictSummary : f.desc,
 			ms: isLead ? llmMs : EFFORT_PARAMS[f.effort].temperature > 0.25 ? 320 : 200
-		};
-	});
+		});
+	}
 
 	return {
 		verdict,
