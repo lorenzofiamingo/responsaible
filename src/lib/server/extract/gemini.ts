@@ -26,7 +26,7 @@ const PREAMBLE =
 
 const CATEGORIES = ['hallucination', 'jurisdiction', 'missing_authority', 'conflict', 'deadline'];
 const SEVERITIES = ['low', 'med', 'high'];
-const TYPES = ['draft', 'memo', 'risk_analysis'];
+const TYPES = ['draft', 'memo', 'opinion', 'risk_analysis'];
 
 interface GeminiAnalysis {
 	type?: string;
@@ -46,7 +46,9 @@ function prompt(text: string): string {
 		'mark them inline with [1], [2], … in the body. Do NOT add authorities the document does not ' +
 		'mention. Be concise and practitioner-grade.\n\n' +
 		'Return ONLY a JSON object with keys: ' +
-		'{"type":"draft|memo|risk_analysis","title":str,"summary":str (one line),"body":str (with [n] ' +
+		'{"type":"draft|memo|opinion|risk_analysis (opinion = an external, reliance-bearing legal opinion ' +
+		'addressed to a client or third party; memo = internal analysis not relied upon)","title":str,' +
+		'"summary":str (one line),"body":str (with [n] ' +
 		'markers),"matterName":str,"matterRef":str,"riskSignals":[{"category":"hallucination|jurisdiction|' +
 		'missing_authority|conflict|deadline","severity":"low|med|high","rationale":str,"confidence":0-1}]}.\n\n' +
 		'--- DOCUMENT ---\n' +

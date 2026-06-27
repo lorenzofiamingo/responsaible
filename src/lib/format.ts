@@ -4,8 +4,11 @@
 export type Tone = 'accent' | 'neutral' | 'success' | 'warning' | 'danger' | 'info';
 
 export const WP_TYPE = {
-	draft: { label: 'Draft', icon: 'file-text' },
+	draft: { label: 'Draft', icon: 'pencil' },
 	memo: { label: 'Memo', icon: 'file-text' },
+	// An external, reliance-bearing legal opinion — the highest sign-off stakes,
+	// so it reads distinctly (gavel) from the internal memo it is NOT.
+	opinion: { label: 'Opinion', icon: 'gavel' },
 	risk_analysis: { label: 'Risk analysis', icon: 'shield-alert' }
 } as const;
 

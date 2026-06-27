@@ -87,7 +87,7 @@ work_product 1───* agent_action       (the trace: search/retrieve/reason/d
              1───* supervisory_action  (INSERT-ONLY, hash-chained audit ledger)
 ```
 
-- **`work_product`** — one AI deliverable. `type` (draft / memo / risk_analysis),
+- **`work_product`** — one AI deliverable. `type` (draft / memo / opinion / risk_analysis),
   `title`, `summary`, `body` (with inline `[n]` citation markers), matter ref/name,
   `agentName`, `status` (pending / approved / amended / rejected / rework / escalated),
   `priority` (higher = more urgent), `confidence` (0..1), `model`, `createdAt`.

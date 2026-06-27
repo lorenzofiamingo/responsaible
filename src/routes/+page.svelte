@@ -23,7 +23,7 @@
 	const confLevel = (c: number) => (c >= 0.8 ? 'high' : c >= 0.6 ? 'medium' : 'low');
 
 	// Only offer type/status values that actually occur, in their canonical order.
-	const typeOrder = ['draft', 'memo', 'risk_analysis'] as const;
+	const typeOrder = ['draft', 'memo', 'opinion', 'risk_analysis'] as const;
 	const presentTypes = $derived(typeOrder.filter((t) => data.queue.some((w) => w.type === t)));
 	const presentStatuses = $derived(
 		Object.keys(STATUS).filter((s) => data.queue.some((w) => w.status === s))

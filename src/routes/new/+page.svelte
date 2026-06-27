@@ -60,7 +60,7 @@
 	const TRACE_KINDS = ['search', 'retrieve', 'reason', 'draft', 'cite', 'critique'];
 	const RISK_CATS = ['hallucination', 'jurisdiction', 'missing_authority', 'conflict', 'deadline'];
 	const SEVS = ['low', 'med', 'high'];
-	const TYPES = ['draft', 'memo', 'risk_analysis'];
+	const TYPES = ['draft', 'memo', 'opinion', 'risk_analysis'];
 
 	const str = (v: unknown, d = '') => (typeof v === 'string' ? v : d);
 	const numOr = (v: unknown, d: number) =>
@@ -480,6 +480,7 @@
 				<select bind:value={draft.type}>
 					<option value="memo">Memo</option>
 					<option value="draft">Draft</option>
+					<option value="opinion">Opinion</option>
 					<option value="risk_analysis">Risk analysis</option>
 				</select>
 			</div>

@@ -106,7 +106,7 @@ export async function getLastHash(db: DB): Promise<string> {
 }
 
 export interface NewWorkProductInput {
-	type: 'draft' | 'memo' | 'risk_analysis';
+	type: 'draft' | 'memo' | 'opinion' | 'risk_analysis';
 	title: string;
 	summary?: string;
 	body?: string;

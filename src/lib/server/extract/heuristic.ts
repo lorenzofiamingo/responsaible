@@ -222,7 +222,11 @@ function scorePriority(
 	const med = risks.filter((r) => r.severity === 'med').length;
 	if (high) p += 20 + (high - 1) * 8;
 	p += med * 6;
-	if (type === 'risk_analysis') p += 8;
+	// Risk analyses and reliance-bearing opinions carry the highest sign-off stakes,
+	// so they surface earlier. (The keyword classifier never emits 'opinion' — see
+	// classifyType — so this only bites when the type is set explicitly, e.g. via the
+	// live Gemini path or the operator form; it keeps the score correct by type.)
+	if (type === 'risk_analysis' || type === 'opinion') p += 8;
 	if (risks.some((r) => r.category === 'deadline')) p += 8;
 	p += Math.round((1 - confidence) * 18); // lower confidence ⇒ needs a human sooner
 	return clamp(Math.round(p), 20, 96);
