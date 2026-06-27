@@ -184,16 +184,9 @@ FIGURE_PRESETS: dict[str, dict[str, Any]] = {
             "tools": ["knowledge"],
         },
     },
-    "drafter": {
-        "label": "Drafter",
-        "icon": "pencil",
-        "figure": {
-            "role": "drafter",
-            "model": "claude-opus-4-8",
-            "effort": "high",
-            "desc": "Re-states the claim and pins each [n] to an article locator.",
-        },
-    },
+    # No drafter palette figure: at verification time drafting is already done, so it
+    # is not offered as a runtime figure. The 'drafter' role stays valid for the offline
+    # pipeline (its drafter writes the seed work products).
     "critic": {
         "label": "Critic",
         "icon": "shield-alert",

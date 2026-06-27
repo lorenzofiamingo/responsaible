@@ -37,7 +37,7 @@
 	// Palette, grouped so the three canonical researchers read as first-class.
 	const PALETTE_GROUPS: { label: string; ids: FigurePresetId[] }[] = [
 		{ label: 'Researchers', ids: ['cellar_researcher', 'web_researcher', 'knowledge_researcher'] },
-		{ label: 'Reviewers', ids: ['drafter', 'critic'] }
+		{ label: 'Reviewers', ids: ['critic'] }
 	];
 
 	function pickPreset(id: PresetId) {

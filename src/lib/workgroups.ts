@@ -146,7 +146,6 @@ export type FigurePresetId =
 	| 'cellar_researcher'
 	| 'web_researcher'
 	| 'knowledge_researcher'
-	| 'drafter'
 	| 'critic';
 
 export const FIGURE_PRESETS: Record<FigurePresetId, { label: string; icon: string; make: () => Figure }> = {
@@ -186,16 +185,10 @@ export const FIGURE_PRESETS: Record<FigurePresetId, { label: string; icon: strin
 			tools: ['knowledge']
 		})
 	},
-	drafter: {
-		label: 'Drafter',
-		icon: FIGURE_ROLE.drafter.icon,
-		make: () => ({
-			role: 'drafter',
-			model: 'claude-opus-4-8',
-			effort: 'high',
-			desc: 'Re-states the claim and pins each [n] to an article locator.'
-		})
-	},
+	// No drafter here: at verification time drafting is already done (offline, at seed
+	// time), so the drafter is not offered as a runtime figure. The 'drafter' ROLE is
+	// kept in the type system because the offline ADK pipeline's drafter writes the seed
+	// work products, and seeded figures may still carry it.
 	critic: {
 		label: 'Critic',
 		icon: FIGURE_ROLE.critic.icon,
