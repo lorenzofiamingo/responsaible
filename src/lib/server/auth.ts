@@ -21,6 +21,14 @@ export function getAuth(env: App.Platform['env']) {
 		secret,
 		baseURL,
 		basePath: '/api/auth',
+		// Prod stays strict (only baseURL is trusted). In local dev we also trust the
+		// request's own localhost origin, so the app works on any port (5173, a
+		// preview's auto-assigned port, etc.) without reconfiguring BETTER_AUTH_URL.
+		trustedOrigins: (request) => {
+			const origin = request?.headers?.get('origin');
+			if (origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return [origin];
+			return [];
+		},
 		database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
 		emailAndPassword: {
 			enabled: true,
