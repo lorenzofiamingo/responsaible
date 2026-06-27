@@ -59,6 +59,30 @@ export const VERIFY: Record<string, { label: string; tone: Tone; icon: string }>
 	unresolved: { label: 'Unresolved', tone: 'danger', icon: 'circle-x' }
 };
 
+export const ROLE: Record<string, { label: string; icon: string; tone: Tone; can: string }> = {
+	operator: {
+		label: 'AI operator',
+		icon: 'sparkles',
+		tone: 'info',
+		can: 'Submits AI work products into the supervision queue.'
+	},
+	supervisor: {
+		label: 'Supervising lawyer',
+		icon: 'shield-check',
+		tone: 'accent',
+		can: 'Reviews, challenges and signs off AI work; cannot submit.'
+	},
+	admin: {
+		label: 'Administrator',
+		icon: 'shield',
+		tone: 'neutral',
+		can: 'Full access — can both submit and supervise.'
+	}
+};
+
+export const CAN_SUBMIT = new Set(['operator', 'admin']);
+export const CAN_SUPERVISE = new Set(['supervisor', 'admin']);
+
 const DT = new Intl.DateTimeFormat('en-GB', {
 	day: '2-digit',
 	month: 'short',

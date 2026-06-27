@@ -7,7 +7,7 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import SupervisoryActions from '$lib/components/SupervisoryActions.svelte';
 	import TraceTimeline from '$lib/components/TraceTimeline.svelte';
-	import { fmtDateTime, WP_TYPE } from '$lib/format';
+	import { CAN_SUPERVISE, fmtDateTime, ROLE, WP_TYPE } from '$lib/format';
 	import { invalidateAll } from '$app/navigation';
 
 	let { data, form } = $props();
@@ -30,6 +30,7 @@
 
 	const unresolved = $derived(data.citations.filter((c) => c.verifyStatus === 'unresolved').length);
 	const unchecked = $derived(data.citations.filter((c) => c.verifyStatus === 'unchecked').length);
+	const canSupervise = $derived(!!data.user && CAN_SUPERVISE.has(data.user.role));
 
 	let verifyingCites = $state(false);
 	async function verifyCitations() {
@@ -103,8 +104,16 @@
 	<aside class="col-rail">
 		<section class="panel">
 			<h2 class="ptitle"><Icon name="gavel" size={16} /> Your decision</h2>
-			<p class="phint">Approve, amend, reject, request rework, escalate, or override. Reasons are required for the serious ones and recorded immutably.</p>
-			<SupervisoryActions {form} />
+			{#if canSupervise}
+				<p class="phint">Approve, amend, reject, request rework, escalate, or override. Reasons are required for the serious ones and recorded immutably.</p>
+				<SupervisoryActions {form} />
+			{:else}
+				<p class="norole">
+					<Icon name="lock" size={14} />
+					Recording a supervisory decision requires the <strong>supervising lawyer</strong> role.{#if data.user}
+						You're signed in as {ROLE[data.user.role]?.label ?? data.user.role} — use “Switch” in the header to change.{/if}
+				</p>
+			{/if}
 		</section>
 
 		<section class="panel">
@@ -231,6 +240,19 @@
 		margin: -8px 0 var(--space-4);
 		font-size: var(--text-sm);
 		color: var(--text-tertiary);
+		line-height: var(--leading-normal);
+	}
+	.norole {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		margin: 0;
+		padding: 12px 14px;
+		background: var(--surface-sunken);
+		border: 1.5px solid var(--border-default);
+		border-radius: var(--radius-md);
+		font-size: var(--text-sm);
+		color: var(--text-secondary);
 		line-height: var(--leading-normal);
 	}
 

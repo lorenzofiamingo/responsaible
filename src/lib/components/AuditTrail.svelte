@@ -13,15 +13,10 @@
 		reason: string | null;
 	}>(null);
 
-	// A verification result is a point-in-time snapshot — clear it once a new
-	// decision is recorded so the banner can't show a stale count.
-	let lastLen = entries.length;
-	$effect(() => {
-		if (entries.length !== lastLen) {
-			lastLen = entries.length;
-			result = null;
-		}
-	});
+	// The entries-count at the moment of verification. A verification result is a
+	// point-in-time snapshot; if a new decision arrives this no longer matches the
+	// current count, so the (now stale) banner is hidden automatically.
+	let resultAtLen = $state(-1);
 
 	async function verify() {
 		verifying = true;
@@ -33,6 +28,7 @@
 			result = { ok: false, length: 0, brokenAt: null, reason: 'verification request failed' };
 		} finally {
 			verifying = false;
+			resultAtLen = entries.length;
 		}
 	}
 </script>
@@ -50,7 +46,7 @@
 		</button>
 	</div>
 
-	{#if result}
+	{#if result && resultAtLen === entries.length}
 		<div class="result" class:ok={result.ok} class:bad={!result.ok}>
 			{#if result.ok}
 				<Icon name="circle-check" size={15} color="var(--status-success-fg)" />

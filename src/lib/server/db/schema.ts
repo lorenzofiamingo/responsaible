@@ -1,6 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
+// Better Auth tables (user/session/account/verification) — co-located so one
+// migration + one Drizzle client cover both auth and the domain model.
+export * from './auth-schema';
+
 /**
  * Itaily Oversight — data model.
  *

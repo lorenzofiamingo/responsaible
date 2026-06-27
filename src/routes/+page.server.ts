@@ -3,7 +3,7 @@ import { getQueue } from '$lib/server/db/queries';
 import { citation, riskSignal } from '$lib/server/db/schema';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ platform }) => {
+export const load: PageServerLoad = async ({ platform, locals }) => {
 	const db = dbFrom(platform);
 	const items = await getQueue(db);
 	const risks = await db.select().from(riskSignal).all();
@@ -34,5 +34,5 @@ export const load: PageServerLoad = async ({ platform }) => {
 		lowConfidence: queue.filter((q) => q.confidence < 0.6).length
 	};
 
-	return { queue, stats };
+	return { queue, stats, user: locals.user };
 };

@@ -21,15 +21,21 @@ const STATUS_FOR_ACTION: Record<
 	override: 'amended'
 };
 
-export const load: PageServerLoad = async ({ params, platform }) => {
+export const load: PageServerLoad = async ({ params, platform, locals }) => {
 	const db = dbFrom(platform);
 	const data = await getWorkProduct(db, params.id);
 	if (!data) throw error(404, 'Work product not found');
-	return data;
+	return { ...data, user: locals.user };
 };
 
 export const actions: Actions = {
 	act: async ({ request, params, platform, locals }) => {
+		if (!locals.user || !['supervisor', 'admin'].includes(locals.user.role)) {
+			return fail(403, {
+				error: 'Only a supervising lawyer can record supervisory actions.',
+				action: ''
+			});
+		}
 		const db = dbFrom(platform);
 		const fd = await request.formData();
 		const action = String(fd.get('action') ?? '');

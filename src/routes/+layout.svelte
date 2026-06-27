@@ -1,31 +1,57 @@
 <script lang="ts">
 	import '../app.css';
+	import { authClient } from '$lib/auth-client';
+	import Avatar from '$lib/components/Avatar.svelte';
 	import Brand from '$lib/components/Brand.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import Avatar from '$lib/components/Avatar.svelte';
+	import { CAN_SUBMIT, ROLE } from '$lib/format';
 
 	let { children, data } = $props();
+
+	let switching = $state(false);
+	async function switchUser() {
+		switching = true;
+		await authClient.signOut();
+		// Full reload so the layout drops the old session cleanly.
+		window.location.href = '/login';
+	}
+
+	const role = $derived(data.user ? (ROLE[data.user.role] ?? ROLE.operator) : null);
+	const canSubmit = $derived(!!data.user && CAN_SUBMIT.has(data.user.role));
 </script>
 
 <svelte:head>
 	<link rel="icon" href="/favicon.svg" />
 </svelte:head>
 
-<div class="shell">
-	<header class="topbar">
-		<Brand />
-		<div class="who">
-			<div class="meta">
-				<span class="role"><Icon name="shield-check" size={12} /> Supervising lawyer</span>
-				<span class="email">{data.actorEmail}</span>
+{#if data.user && role}
+	<div class="shell">
+		<header class="topbar">
+			<Brand />
+			<div class="who">
+				{#if canSubmit}
+					<a class="add" href="/new"><Icon name="file-text" size={14} /> Add work product</a>
+				{/if}
+				<div class="meta">
+					<span class="role"><Icon name={role.icon} size={12} /> {role.label}</span>
+					<span class="email">{data.user.email}</span>
+				</div>
+				<Avatar name={data.user.name} size={34} />
+				<button class="switch" onclick={switchUser} disabled={switching} title="Sign out and switch user">
+					<Icon name="rotate-ccw" size={14} />
+					Switch
+				</button>
 			</div>
-			<Avatar name="Giulia Romano" size={34} />
-		</div>
-	</header>
-	<main class="content">
+		</header>
+		<main class="content">
+			{@render children()}
+		</main>
+	</div>
+{:else}
+	<main class="auth-shell">
 		{@render children()}
 	</main>
-</div>
+{/if}
 
 <style>
 	.shell {
@@ -50,7 +76,25 @@
 	.who {
 		display: flex;
 		align-items: center;
-		gap: 12px;
+		gap: 14px;
+	}
+	.add {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--font-display);
+		font-weight: var(--weight-medium);
+		font-size: var(--text-sm);
+		color: var(--text-primary);
+		text-decoration: none;
+		background: var(--surface-card);
+		border: 1.5px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		padding: 7px 12px;
+	}
+	.add:hover {
+		border-color: var(--color-accent);
+		background: var(--terracotta-50);
 	}
 	.meta {
 		display: flex;
@@ -73,11 +117,37 @@
 		font-size: var(--text-sm);
 		color: var(--text-secondary);
 	}
+	.switch {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--font-display);
+		font-weight: var(--weight-medium);
+		font-size: var(--text-sm);
+		color: var(--text-secondary);
+		background: transparent;
+		border: 1.5px solid var(--border-default);
+		border-radius: var(--radius-md);
+		padding: 7px 11px;
+		cursor: pointer;
+	}
+	.switch:hover:not(:disabled) {
+		color: var(--text-primary);
+		border-color: var(--border-strong);
+		background: var(--surface-hover);
+	}
+	.switch:disabled {
+		opacity: 0.6;
+		cursor: progress;
+	}
 	.content {
 		flex: 1;
 		width: 100%;
 		max-width: var(--container-max);
 		margin: 0 auto;
 		padding: var(--space-6);
+	}
+	.auth-shell {
+		min-height: 100vh;
 	}
 </style>
